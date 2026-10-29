@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { WORKER_URL, apiBase, checkPremium, runAudit, runLaunchChecks } from './api'
+import { WORKER_URL, checkPremium, runAudit, runLaunchChecks } from './api'
 import { LOGO_DARK_URL, LOGO_URL } from './logoData'
 import { normalizeUrl } from './url'
 import { SAMPLE_REPORT } from './sampleReport'
@@ -84,7 +84,7 @@ export default function App() {
       return
     }
     if (!WORKER_URL) {
-      setError('The analysis Worker is not configured for this build yet. Set VITE_WORKER_URL to https://seo-api.kluzar.com at build time, or view the sample report below. No analysis was faked.')
+      setError('Live analysis is not available right now. Please see the example report below, or try again later.')
       setPhase('error')
       return
     }
@@ -94,7 +94,7 @@ export default function App() {
     setPhaseNote('Validating the URL…')
     try {
       setPhase('fetching')
-      setPhaseNote('Fetching the page safely and analyzing it (timeout and size limits apply)…')
+      setPhaseNote('Fetching the page safely and analyzing it…')
       const audit = await runAudit(result.url)
       setReport(audit)
       // Launch checks reuse the same analyzed origin; a failure here must
@@ -120,7 +120,7 @@ export default function App() {
     setLaunchError('')
     setReport(SAMPLE_REPORT)
     setLaunchChecks(null)
-    setLaunchError('Sample report — robots.txt and sitemap were not checked live. This is demonstration data, not a live analysis.')
+    setLaunchError('Example report — robots.txt and sitemap were not checked live for this example.')
     setNormalized(SAMPLE_REPORT.finalUrl)
     setSubmittedRaw(SAMPLE_REPORT.finalUrl)
     setPhase('done')
@@ -133,7 +133,7 @@ export default function App() {
       const result = await checkPremium()
       setPremiumMsg(result.available
         ? 'Premium is available.'
-        : `${result.reason} No checkout, no charge, and no premium access is granted here. Premium is enforced on the Worker, not by this page.`)
+        : `${result.reason} No checkout, no charge, and no premium access is granted here.`)
     } catch (err) {
       setPremiumMsg(err instanceof Error ? err.message : 'Premium check failed.')
     } finally {
@@ -169,9 +169,9 @@ export default function App() {
             )}
             {account && account.kind === 'starter' && <span className="account-badge">Starter · Free</span>}
             {AUTH_URL ? (
-              <a className="login-btn" href={AUTH_URL}>Login</a>
+              <a className="login-btn" href={AUTH_URL}>Login →</a>
             ) : (
-              <button type="button" className="login-btn" onClick={() => setLoginMsg('Login is not live yet — no authentication destination is configured, so no account is created here. You can use all Starter features without logging in.')}>Login</button>
+              <button type="button" className="login-btn" onClick={() => setLoginMsg('Login is not available yet. You can use all Starter features without logging in.')}>Login →</button>
             )}
             <button type="button" className="theme-toggle" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
               {theme === 'dark' ? '☀ Light' : '☾ Dark'}
@@ -213,7 +213,7 @@ export default function App() {
             <p id="url-help" className="help">
               A bare domain works: <code>example.com</code> becomes <code>https://example.com/</code>.
               A page path is preserved: <code>https://example.com/about</code> stays that page.
-              Only public http:// and https:// pages. Private, local, and internal addresses are blocked by the Worker.
+              Only public http:// and https:// pages. Private, local, and internal addresses are blocked for safety.
             </p>
           </form>
 
@@ -239,18 +239,29 @@ export default function App() {
           )}
           {!WORKER_URL && (
             <div className="notice">
-              <strong>Worker not configured in this build.</strong> Live analysis needs
-              <code> VITE_WORKER_URL </code> set to <code>https://seo-api.kluzar.com</code> at build time.
-              The sample report below works without a Worker and is clearly labelled as demo data.
+              Live analysis is being set up. You can see an example report below.
             </div>
           )}
           <div className="hero-actions">
             <button type="button" className="secondary" onClick={onSample}>
-              View sample report →
+              See an example report →
             </button>
-            <p className="api-note">
-              API: <code>{WORKER_URL ? `${apiBase()}/audit` : 'Worker URL not configured'}</code>
-            </p>
+          </div>
+        </section>
+
+        <section className="features" aria-label="What you get">
+          <h2>What you get from one analysis</h2>
+          <div className="how-it-works">
+            <div className="step"><strong>1. Enter your URL once</strong><span>Just your website address. A plain domain works too.</span></div>
+            <div className="step"><strong>2. We analyze that page</strong><span>Safely, in one pass, without changing your site.</span></div>
+            <div className="step"><strong>3. You get one clear report</strong><span>Five sections, most important fixes first.</span></div>
+          </div>
+          <div className="feature-grid">
+            <article className="feature-card"><h3>Basic SEO Audit <span className="tier free">FREE</span></h3><p>We read your page the way a search engine does: title, description, headings, images, links and technical basics. You see what is good, what needs fixing, and exactly how to fix it.</p></article>
+            <article className="feature-card"><h3>SEO Action Checklist <span className="tier free">FREE</span></h3><p>Your audit turned into a simple to-do list, most important first, with clear steps for each fix. Tick items off as you complete them.</p></article>
+            <article className="feature-card"><h3>Search &amp; Social Preview <span className="tier free">FREE</span></h3><p>See how your page could look in Google search results and when shared on social media. Edit the title and description and check length warnings before you publish.</p></article>
+            <article className="feature-card"><h3>Website Launch Checklist <span className="tier free">FREE</span></h3><p>Before you launch: the essentials that must be ready, including metadata, HTTPS, mobile view, important links, robots.txt and sitemap, plus manual reminders.</p></article>
+            <article className="feature-card"><h3>Website Quality Checklist <span className="tier free">FREE</span></h3><p>A plain-language quality check for the same page: structure, images, links, accessibility signals and technical headers, with honest limits stated on every row.</p></article>
           </div>
         </section>
 
@@ -268,8 +279,8 @@ export default function App() {
             <section className="report-header">
               {report.sample && (
                 <div className="sample-banner">
-                  <strong>SAMPLE REPORT — demonstration data only.</strong> This was not produced
-                  by a live analysis of a real website. The site uses the reserved .example domain.
+                  <strong>Example report — see what a real report looks like.</strong> This example was not produced
+                  by a live analysis of a real website.
                 </div>
               )}
               <h2>Report for {new URL(report.finalUrl).hostname}</h2>
@@ -319,37 +330,42 @@ export default function App() {
             <section id="section-audit" className="tool-section">
               <p className="tool-kicker">TOOL 1 · <span className="tier free">FREE</span></p>
               <h2>Basic SEO Audit</h2>
+              <p className="tool-intro">What search engines see on your page, check by check, with evidence and a fix for each issue.</p>
               <AuditSection report={report} />
             </section>
 
             <section id="section-action" className="tool-section">
               <p className="tool-kicker">TOOL 2 · <span className="tier free">FREE</span></p>
               <h2>SEO Action Checklist</h2>
+              <p className="tool-intro">Your audit as a to-do list. Start at the top: the most important fixes are listed first.</p>
               <ActionChecklist report={report} />
             </section>
 
             <section id="section-preview" className="tool-section">
               <p className="tool-kicker">TOOL 3 · <span className="tier free">FREE</span></p>
               <h2>Search &amp; Social Preview</h2>
+              <p className="tool-intro">How your page could appear to people searching and sharing it, and how to improve that first impression.</p>
               <PreviewTool report={report} />
             </section>
 
             <section id="section-launch" className="tool-section">
               <p className="tool-kicker">TOOL 4 · <span className="tier free">FREE</span></p>
               <h2>Website Launch Checklist</h2>
+              <p className="tool-intro">Everything that should be ready before your site goes live, checked automatically where possible.</p>
               <LaunchChecklist report={report} launchChecks={launchChecks} launchError={launchError} />
             </section>
 
             <section id="section-quality" className="tool-section">
               <p className="tool-kicker">TOOL 5 · <span className="tier free">FREE</span></p>
               <h2>Website Quality Checklist</h2>
+              <p className="tool-intro">A quality and usability check for the same page, in plain words, with its limits stated honestly.</p>
               <QualityTool report={report} />
             </section>
 
             <section id="section-premium" className="tool-section">
               <h2>Premium</h2>
               {account && account.kind !== 'starter' && <p className="account-detail" role="status">{account.detail}</p>}
-              <p className="tool-intro">Premium features are LOCKED in this release. They are not operational, no payment is taken here, and premium access is enforced on the Worker (currently 403 for every caller), not by hiding buttons on this page.</p>
+              <p className="tool-intro">Premium features are locked in this release. They are not operational yet, and no payment is taken here. When premium checkout opens, the Go Premium button below will take you to the payment page.</p>
               <ul>
                 <li><strong>Full broken-link scan</strong> — <span className="tier premium">LOCKED</span> — Starter checks up to 5 internal links.</li>
                 <li><strong>Premium audit findings</strong> — <span className="tier premium">LOCKED</span> — Structured data, hreflang, anchor-text quality, duplicate headings, word count, sitemap-from-robots.</li>

@@ -42,7 +42,7 @@ export function LockedNote({ feature }: { feature: string }) {
       {PREMIUM_DESTINATION_URL ? (
         <p><a href={PREMIUM_DESTINATION_URL}>Go Premium →</a></p>
       ) : (
-        <p>Premium is not live yet — the premium destination has not been configured, so no payment link is shown here.</p>
+        <p>Premium checkout is not live yet.</p>
       )}
     </div>
   )
@@ -56,7 +56,7 @@ export function GoPremium() {
       {PREMIUM_DESTINATION_URL ? (
         <a className="go-premium-link" href={PREMIUM_DESTINATION_URL}>Go Premium →</a>
       ) : (
-        <p>Premium destination is not configured yet, so no link is shown here. This button does not charge anything and does not create an account.</p>
+        <p>Premium checkout is not live yet. When it opens, this button will take you to the payment page.</p>
       )}
     </div>
   )
@@ -98,7 +98,7 @@ export function ActionChecklist({ report }: { report: AuditResponse | null }) {
     return (
       <div className="tool">
         <p className="tool-kicker">TOOL 2 · <span className="tier free">FREE</span></p>
-        <h2>SEO Action Checklist</h2>
+        <h3>SEO Action Checklist</h3>
         <div className="empty"><p>No audit yet.</p><p>Run a Basic Audit first. Every finding that needs attention will appear here as a task you can tick off.</p></div>
       </div>
     )
@@ -107,7 +107,7 @@ export function ActionChecklist({ report }: { report: AuditResponse | null }) {
     return (
       <div className="tool">
         <p className="tool-kicker">TOOL 2 · <span className="tier free">FREE</span></p>
-        <h2>SEO Action Checklist</h2>
+        <h3>SEO Action Checklist</h3>
         <div className="empty"><p>Nothing to fix from the latest audit.</p><p>All scored checks passed. This does not mean the page is perfect — it means the checks in this audit found nothing needing attention.</p></div>
       </div>
     )
@@ -115,7 +115,7 @@ export function ActionChecklist({ report }: { report: AuditResponse | null }) {
   return (
     <div className="tool">
       <p className="tool-kicker">TOOL 2 · <span className="tier free">FREE</span></p>
-      <h2>SEO Action Checklist</h2>
+      <h3>SEO Action Checklist</h3>
       <p className="tool-intro">Tasks converted from the latest audit ({report.finalUrl}). Progress is saved only in this browser — it is not cloud-synced and not tied to an account.</p>
       <Progress done={tasks.filter((t) => done.includes(t.id)).length} total={tasks.length} />
       <div className="filters" role="group" aria-label="Filter tasks">
@@ -179,7 +179,7 @@ export function LaunchChecklist({ report, launchChecks, launchError }: { report:
   return (
     <div className="tool">
       <p className="tool-kicker">TOOL 4 · <span className="tier free">FREE</span></p>
-      <h2>Website Launch Checklist</h2>
+      <h3>Website Launch Checklist</h3>
       <p className="tool-intro">Automatic items come from the latest audit and from a live robots.txt / sitemap check. Manual items are reminders only — this tool does not connect to Analytics or Search Console, and ticking them does not verify anything.</p>
       {!report && <div className="empty"><p>No audit yet.</p><p>Run a Basic Audit first to fill in the automatic items. Manual items below still work without an audit.</p></div>}
       {report && <Progress done={totalDone} total={all.length} />}
@@ -217,7 +217,7 @@ export function QualityTool({ report }: { report: AuditResponse | null }) {
     return (
       <div className="tool">
         <p className="tool-kicker">TOOL 5 · <span className="tier free">FREE</span></p>
-        <h2>Website Quality Checklist</h2>
+        <h3>Website Quality Checklist</h3>
         <div className="empty"><p>No audit yet.</p><p>Run a Basic Audit first. Quality items below are derived from that audit's actual evidence — nothing here is a full browser-rendered accessibility audit, a real-user performance measurement, or a security penetration test.</p></div>
       </div>
     )
@@ -227,7 +227,7 @@ export function QualityTool({ report }: { report: AuditResponse | null }) {
     { title: 'HTML structure & metadata', status: f('title-present')?.status === 'pass' && f('h1')?.status === 'pass' ? 'Passed' : 'Needs attention', detail: `Title: ${f('title-present')?.status ?? 'not checked'} · H1: ${f('h1')?.status ?? 'not checked'} · Heading order: ${f('heading-hierarchy')?.status ?? 'not checked'}` },
     { title: 'Mobile viewport', status: f('technical-basics')?.evidence.includes('viewport present') ? 'Passed' : 'Needs attention', detail: 'From the technical-basics finding. Tap-target sizes and real-device rendering are NOT measured here.' },
     { title: 'Image alternative text', status: f('images-alt')?.status ?? 'not_checked', detail: f('images-alt')?.evidence ?? '' },
-    { title: 'Link destinations', status: report.brokenLinks ? (report.brokenLinks.broken.length === 0 ? 'Passed (checked links)' : 'Needs attention') : 'Not checked', detail: report.brokenLinks ? `${report.brokenLinks.checked} internal link(s) checked, ${report.brokenLinks.broken.length} broken, ${report.brokenLinks.couldNotVerify.length} could not be verified, ${report.brokenLinks.unchecked} unchecked (Starter limit: ${LIMITS.auditBrokenLinksChecked}). ${report.brokenLinks.note}` : 'Broken-link checking was not returned by this Worker version. Only links actually checked are ever labelled broken.' },
+    { title: 'Link destinations', status: report.brokenLinks ? (report.brokenLinks.broken.length === 0 ? 'Passed (checked links)' : 'Needs attention') : 'Not checked', detail: report.brokenLinks ? `${report.brokenLinks.checked} internal link(s) checked, ${report.brokenLinks.broken.length} broken, ${report.brokenLinks.couldNotVerify.length} could not be verified, ${report.brokenLinks.unchecked} unchecked (Starter limit: ${LIMITS.auditBrokenLinksChecked}). ${report.brokenLinks.note}` : 'Broken-link checking was not available for this report. Only links actually checked are ever labelled broken.' },
     { title: 'Link safety (new-tab links)', status: (report.blankWithoutNoopener ?? 0) === 0 ? 'Passed' : 'Needs attention', detail: `${report.blankWithoutNoopener ?? 0} external link(s) open in a new tab without rel="noopener". This is a static HTML signal only.` },
     { title: 'Security response headers (presence only)', status: 'Info', detail: `HSTS: ${report.headers.strictTransportSecurity ? 'present' : 'not present'} · X-Content-Type-Options: ${report.headers.xContentTypeOptions ? 'present' : 'not present'} · X-Frame-Options: ${report.headers.xFrameOptions ? 'present' : 'not present'} · CSP: ${report.headers.hasContentSecurityPolicy ? 'present' : 'not present'}. Header presence is not a security test — it does not prove the site is secure.` },
     { title: 'Performance signals', status: 'Info', detail: 'No real-user performance is measured by this static audit. No Core Web Vitals, load time, or Lighthouse score is claimed here. Use a real browser performance tool for that.' },
@@ -236,7 +236,7 @@ export function QualityTool({ report }: { report: AuditResponse | null }) {
   return (
     <div className="tool">
       <p className="tool-kicker">TOOL 5 · <span className="tier free">FREE</span></p>
-      <h2>Website Quality Checklist</h2>
+      <h3>Website Quality Checklist</h3>
       <p className="tool-intro">Derived from the latest audit ({report.finalUrl}). Limitations are stated on every row: static HTML analysis cannot see JavaScript-rendered content, real performance, or full accessibility.</p>
       <table className="quality-table">
         <thead><tr><th>Check</th><th>Status</th><th>Evidence / limitation</th></tr></thead>

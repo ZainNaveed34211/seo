@@ -51,7 +51,7 @@ export default function PreviewTool({ report }: { report: AuditResponse | null }
   return (
     <div className="tool">
       <p className="tool-kicker">TOOL 3 · <span className="tier free">FREE</span></p>
-      <h2>Search &amp; Social Preview</h2>
+      <h3>Search &amp; Social Preview</h3>
       <p className="tool-intro">
         Edit a title and description locally and see how they <em>might</em> look in a search
         result and a social share. This is a simulation, not Google's final result and not

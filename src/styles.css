@@ -219,3 +219,42 @@ h3 { font-size: 18px; margin: 20px 0 8px; }
 .quality-table th:nth-child(1), .quality-table td:nth-child(1) { width: 28%; }
 .quality-table th:nth-child(2), .quality-table td:nth-child(2) { width: 18%; }
 .quality-table th:nth-child(3), .quality-table td:nth-child(3) { width: 54%; }
+
+/* --- Production polish: attractive header buttons + feature explanations --- */
+.login-btn {
+  background: linear-gradient(135deg, var(--navy), var(--violet));
+  color: #fff; border: none; border-radius: 999px; padding: 10px 22px;
+  min-height: 44px; font-weight: 700; font-size: 15px; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(124, 92, 255, .30);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.login-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(124, 92, 255, .38); }
+.login-btn:focus-visible { outline: 3px solid rgba(124, 92, 255, .45); outline-offset: 2px; }
+.theme-toggle {
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; min-height: 44px; padding: 10px 16px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.theme-toggle:hover { border-color: var(--violet); transform: translateY(-1px); }
+.account-badge {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  padding: 8px 14px; font-size: 13px; font-weight: 700; color: var(--text);
+}
+.features { max-width: 1100px; margin: 0 auto; padding: 8px 0 24px; }
+.features h2 { font-size: 26px; margin: 8px 0 16px; }
+.how-it-works { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.step { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.step span { color: var(--muted); font-size: 14px; }
+.feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; transition: border-color .2s ease, box-shadow .2s ease; }
+.feature-card:hover { border-color: var(--violet); box-shadow: 0 8px 24px rgba(124, 92, 255, .12); }
+.feature-card h3 { margin: 0 0 8px; }
+.feature-card p { color: var(--muted); margin: 0; line-height: 1.6; }
+.tool-intro { color: var(--muted); margin: 0 0 16px; line-height: 1.6; }
+@media (max-width: 900px) {
+  .how-it-works, .feature-grid { grid-template-columns: 1fr; }
+  .features h2 { font-size: 22px; }
+  .login-btn, .theme-toggle { min-height: 44px; }
+}

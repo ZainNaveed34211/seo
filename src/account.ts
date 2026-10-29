@@ -52,7 +52,7 @@ export async function checkAccountStatus(
       kind: 'starter',
       authenticated: false,
       premium: false,
-      detail: 'No authentication integration is configured. You are using Starter (Free) without logging in.',
+      detail: 'You are using Starter (Free) without logging in.',
     }
   }
   // A real integration is configured: show a loading state while verifying.
@@ -66,7 +66,7 @@ export async function checkAccountStatus(
         kind: 'starter',
         authenticated: false,
         premium: false,
-        detail: 'No valid session was found. You are using Starter (Free) without logging in.',
+        detail: 'We could not sign you in. You are using Starter (Free) without logging in.',
       }
     }
   } catch {
@@ -74,7 +74,7 @@ export async function checkAccountStatus(
       kind: 'unverified',
       authenticated: false,
       premium: false,
-      detail: 'Account status could not be verified (network or backend failure). Only Starter features are available; no paid access is assumed.',
+      detail: 'We could not verify your account right now. Only Starter features are available.',
     }
   }
   // Authenticated: verify entitlement from the trusted backend only.
@@ -85,7 +85,7 @@ export async function checkAccountStatus(
         kind: 'premium',
         authenticated: true,
         premium: true,
-        detail: 'Premium entitlement verified by the backend. Premium features that are still planned (not operational) remain locked until their endpoints exist.',
+        detail: 'Your Premium account is confirmed. Some Premium features are still being built and will unlock when they are ready.',
       }
     }
   } catch {
@@ -93,13 +93,13 @@ export async function checkAccountStatus(
       kind: 'unverified',
       authenticated: false,
       premium: false,
-      detail: 'Account status could not be fully verified. Only Starter features are available; no paid access is assumed.',
+      detail: 'We could not fully verify your account. Only Starter features are available.',
     }
   }
   return {
     kind: 'authenticated-starter',
     authenticated: true,
     premium: false,
-    detail: 'You are signed in, but you have no eligible Premium entitlement. Starter features are available and Premium features are locked.',
+    detail: 'You are signed in, but you do not have Premium yet. Starter features are available and Premium features are locked.',
   }
 }
