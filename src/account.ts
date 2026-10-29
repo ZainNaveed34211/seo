@@ -34,20 +34,33 @@ export type AccountState =
   | { kind: 'premium'; authenticated: true; premium: true; detail: string }
   | { kind: 'unverified'; authenticated: false; premium: false; detail: string }
 
-// Configurable future authentication destination. Set VITE_AUTH_URL to
-// the real login/session destination when it is confirmed. Do NOT hardcode
-// an unconfirmed URL here. While empty, login is not live.
-export const AUTH_URL = (import.meta.env.VITE_AUTH_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+// CONFIRMED destinations (owner, 2026-10-29):
+//   - Login navigation: https://accounts.kluzar.com
+//   - Premium / payment navigation: https://payments.kluzar.com (see limits.ts)
+// These are navigation destinations only. They are NOT session endpoints.
+// Session verification is a separate integration and is NOT configured yet:
+// set VITE_AUTH_SESSION_URL only when accounts.kluzar.com actually provides
+// a session endpoint, otherwise no session fetch is attempted at all, so
+// the app never shows a failed-verification state on every load.
+export const LOGIN_URL = ((import.meta.env.VITE_LOGIN_URL as string | undefined)
+  ?? (import.meta.env.VITE_AUTH_URL as string | undefined)
+  ?? 'https://accounts.kluzar.com').replace(/\/$/, '')
+export const SESSION_URL = ((import.meta.env.VITE_AUTH_SESSION_URL as string | undefined) ?? '').replace(/\/$/, '')
+// Backwards-compatible alias: AUTH_URL now means the login destination.
+export const AUTH_URL = LOGIN_URL
 
 // Session endpoint contract (to be confirmed with the auth provider):
-//   GET {AUTH_URL}/session, credentials included, JSON response shaped as
+//   GET {SESSION_URL}/session, credentials included, JSON response shaped as
 //   { authenticated: boolean, plan?: 'growth' | 'max' | string }.
 // This function does NOT invent a session when the contract is unconfirmed:
-// if AUTH_URL is empty it returns Starter immediately without a network call.
+// if SESSION_URL is empty it returns Starter immediately without a network call.
 export async function checkAccountStatus(
   checkPremiumFn: () => Promise<{ available: boolean; reason: string }>,
 ): Promise<AccountState> {
-  if (!AUTH_URL) {
+  if (!SESSION_URL) {
+    // No session endpoint is configured yet. Login is a navigation link to
+    // accounts.kluzar.com only — do NOT attempt a fetch to a login page
+    // that is not an API, and do NOT show an unverified state for it.
     return {
       kind: 'starter',
       authenticated: false,
@@ -55,11 +68,11 @@ export async function checkAccountStatus(
       detail: 'You are using Starter (Free) without logging in.',
     }
   }
-  // A real integration is configured: show a loading state while verifying.
+  // A real session integration is configured: show a loading state while verifying.
   // Any network or contract failure fails safe to Starter, never to paid.
   let session: { authenticated?: unknown } | null = null
   try {
-    const res = await fetch(`${AUTH_URL}/session`, { credentials: 'include' })
+    const res = await fetch(`${SESSION_URL}/session`, { credentials: 'include' })
     session = (await res.json().catch(() => null)) as { authenticated?: unknown } | null
     if (!res.ok || !session || session.authenticated !== true) {
       return {

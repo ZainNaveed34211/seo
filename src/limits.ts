@@ -12,19 +12,15 @@
 
 export type Tier = 'free' | 'premium'
 
-// FUTURE PREMIUM DESTINATION — single configuration setting, never a
-// hardcoded unconfirmed URL and never a pricing table on the SEO page.
-//   - Set VITE_PREMIUM_URL when the premium account/login subdomain is
-//     confirmed, OR set VITE_PACKS_URL (already in the existing workflow)
-//     when the payment subdomain is confirmed.
-//   - While both are empty, Go Premium shows an honest "not live yet"
-//     message instead of linking anywhere. No prices are defined here:
-//     Starter (Free), Growth (Paid), and Max (Paid) live on the future
-//     payment subdomain, not on this page, and are never displayed here.
+// PREMIUM DESTINATION — single configuration setting, never a pricing
+// table on the SEO page. CONFIRMED by the owner 2026-10-29:
+//   https://payments.kluzar.com — plans, options and payments all live
+//   there, not on this page. VITE_PREMIUM_URL only overrides it if set.
+// No prices are defined here: plans live on the payment subdomain and
+// are never displayed on the SEO page.
 export const PREMIUM_DESTINATION_URL =
-  (import.meta.env.VITE_PREMIUM_URL as string | undefined)?.replace(/\/$/, '') ??
-  (import.meta.env.VITE_PACKS_URL as string | undefined)?.replace(/\/$/, '') ??
-  ''
+  ((import.meta.env.VITE_PREMIUM_URL as string | undefined)
+    ?? 'https://payments.kluzar.com').replace(/\/$/, '')
 
 export const LIMITS = {
   // Basic Audit (free): one page, scored findings, bounded broken-link check.

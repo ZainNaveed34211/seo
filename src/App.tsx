@@ -3,7 +3,8 @@ import { WORKER_URL, checkPremium, runAudit, runLaunchChecks } from './api'
 import { LOGO_DARK_URL, LOGO_URL } from './logoData'
 import { normalizeUrl } from './url'
 import { SAMPLE_REPORT } from './sampleReport'
-import { AUTH_URL, checkAccountStatus, type AccountState } from './account'
+import { LOGIN_URL, SESSION_URL, checkAccountStatus, type AccountState } from './account'
+import { PREMIUM_DESTINATION_URL } from './limits'
 import type { AuditResponse, LaunchChecks } from './types'
 import AuditSection from './tools/AuditSection'
 import { ActionChecklist, GoPremium, LaunchChecklist, QualityTool } from './tools/Checklists'
@@ -46,7 +47,7 @@ export default function App() {
   // loading. Integration configured -> loading state, then backend result,
   // failing safe to Starter (never paid) on any failure. See src/account.ts.
   useEffect(() => {
-    if (AUTH_URL) setAccount({ kind: 'loading', authenticated: false, premium: false, detail: 'Checking account status…' })
+    if (SESSION_URL) setAccount({ kind: 'loading', authenticated: false, premium: false, detail: 'Checking account status…' })
     checkAccountStatus(checkPremium).then(setAccount).catch(() =>
       setAccount({ kind: 'unverified', authenticated: false, premium: false, detail: 'Account status could not be verified. Only Starter features are available.' }),
     )
@@ -168,8 +169,9 @@ export default function App() {
               </span>
             )}
             {account && account.kind === 'starter' && <span className="account-badge">Starter · Free</span>}
-            {AUTH_URL ? (
-              <a className="login-btn" href={AUTH_URL}>Login →</a>
+            <a className="get-premium-btn" href={PREMIUM_DESTINATION_URL}>Get Premium</a>
+            {LOGIN_URL ? (
+              <a className="login-btn" href={LOGIN_URL}>Login →</a>
             ) : (
               <button type="button" className="login-btn" onClick={() => setLoginMsg('Login is not available yet. You can use all Starter features without logging in.')}>Login →</button>
             )}
@@ -183,13 +185,10 @@ export default function App() {
 
       <main className="unified">
         <section id="analyze" className="analyzer">
-          <p className="eyebrow">KLUZAR SEO · ONE URL, ALL FIVE TOOLS</p>
           <h1>Analyze your website.</h1>
           <p className="hero-copy">
-            Enter one website URL once, click Analyze Website, and get one unified report:
-            Basic SEO Audit, Action Checklist, Search &amp; Social Preview, Launch Checklist,
-            and Quality Checklist — all from the same analysis. We never invent rankings,
-            traffic, backlinks, indexing status, or Core Web Vitals that were not checked.
+            A clear SEO report for your website — what is working, what needs fixing,
+            and what to do first.
           </p>
 
           <form className="audit-form" onSubmit={onAnalyze}>
@@ -203,18 +202,12 @@ export default function App() {
                 placeholder="example.com or https://example.com/about"
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}
-                aria-describedby="url-help"
                 autoComplete="off"
               />
               <button type="submit" disabled={busy}>
                 {busy ? 'Analyzing…' : 'Analyze Website →'}
               </button>
             </div>
-            <p id="url-help" className="help">
-              A bare domain works: <code>example.com</code> becomes <code>https://example.com/</code>.
-              A page path is preserved: <code>https://example.com/about</code> stays that page.
-              Only public http:// and https:// pages. Private, local, and internal addresses are blocked for safety.
-            </p>
           </form>
 
           {busy && (
@@ -262,6 +255,10 @@ export default function App() {
             <article className="feature-card"><h3>Search &amp; Social Preview <span className="tier free">FREE</span></h3><p>See how your page could look in Google search results and when shared on social media. Edit the title and description and check length warnings before you publish.</p></article>
             <article className="feature-card"><h3>Website Launch Checklist <span className="tier free">FREE</span></h3><p>Before you launch: the essentials that must be ready, including metadata, HTTPS, mobile view, important links, robots.txt and sitemap, plus manual reminders.</p></article>
             <article className="feature-card"><h3>Website Quality Checklist <span className="tier free">FREE</span></h3><p>A plain-language quality check for the same page: structure, images, links, accessibility signals and technical headers, with honest limits stated on every row.</p></article>
+          </div>
+          <div className="premium-cta">
+            <div><strong>Want more than the free report?</strong><span> Get Premium for deeper scans, premium findings and branded reports.</span></div>
+            <a className="get-premium-btn" href={PREMIUM_DESTINATION_URL}>Get Premium →</a>
           </div>
         </section>
 
@@ -365,7 +362,32 @@ export default function App() {
             <section id="section-premium" className="tool-section">
               <h2>Premium</h2>
               {account && account.kind !== 'starter' && <p className="account-detail" role="status">{account.detail}</p>}
-              <p className="tool-intro">Premium features are locked in this release. They are not operational yet, and no payment is taken here. When premium checkout opens, the Go Premium button below will take you to the payment page.</p>
+              <p className="tool-intro">Your free report is complete. Premium adds deeper scans and branded reports — see the difference below, then choose a plan on the payment page.</p>
+              <div className="premium-diff">
+                <div className="premium-diff-col">
+                  <h3>What you have now — Starter, free</h3>
+                  <ul>
+                    <li>Basic SEO audit for one page</li>
+                    <li>Action checklist, most important first</li>
+                    <li>Search &amp; social preview</li>
+                    <li>Launch checklist, including robots.txt and sitemap</li>
+                    <li>Quality checklist for one page</li>
+                    <li>Broken-link check for up to 5 internal links</li>
+                    <li>Free JSON and HTML downloads</li>
+                  </ul>
+                </div>
+                <div className="premium-diff-col premium-col">
+                  <h3>What you will get — Premium</h3>
+                  <ul>
+                    <li>Everything in Starter, plus:</li>
+                    <li>Full broken-link scan, not limited to 5 links</li>
+                    <li>Premium audit findings: structured data, hreflang, anchor quality, duplicate headings, word count and sitemap from robots.txt</li>
+                    <li>Branded downloadable report</li>
+                    <li>Multi-page quality scan</li>
+                  </ul>
+                  <p className="premium-note">Plans and payment are on the payment page. No price is shown here.</p>
+                </div>
+              </div>
               <ul>
                 <li><strong>Full broken-link scan</strong> — <span className="tier premium">LOCKED</span> — Starter checks up to 5 internal links.</li>
                 <li><strong>Premium audit findings</strong> — <span className="tier premium">LOCKED</span> — Structured data, hreflang, anchor-text quality, duplicate headings, word count, sitemap-from-robots.</li>
