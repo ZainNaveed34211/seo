@@ -20,6 +20,24 @@
 //     outcome, no double grant) and refunds by expiring the entitlement.
 //
 // Until steps 1–3 are implemented and tested, this function must stay false.
+//
+// v2 — documented entitlement interface (NOT implemented, NOT used to
+// grant access). When a real entitlement store exists, a verified caller
+// would be represented as Entitlement below, and isPremiumEntitled would
+// check a hashed token against that store. Packs in the UI are:
+// Starter (Free), Growth (Paid), Max (Paid). Premium = Growth or Max with
+// a current, unexpired entitlement. No price is defined in this file.
+export type PremiumPlan = 'growth' | 'max'
+
+export interface Entitlement {
+  plan: PremiumPlan
+  expiresAt: number // Unix seconds; expired = not entitled, no grace period
+  customerHash: string // hash only, never an email or payment identifier
+}
+
+export function isEntitlementCurrent(e: Entitlement, nowSec: number): boolean {
+  return e.expiresAt > nowSec
+}
 
 export interface EntitlementEnv {
   PREMIUM_ENABLED?: string

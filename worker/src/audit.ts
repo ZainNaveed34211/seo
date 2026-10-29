@@ -32,6 +32,10 @@ export interface Evidence {
   imagesMissingAltExamples: string[]
   internalLinks: number
   externalLinks: number
+  /** Internal link URLs (deduped, capped at 20) for bounded broken-link checks. */
+  internalLinkUrls: string[]
+  /** External links with target=_blank and neither noopener nor noreferrer. */
+  blankWithoutNoopener: number
   lang: string | null
   viewport: boolean
   charset: string | null
@@ -100,16 +104,26 @@ export function extractEvidence(html: string, finalUrl: string, headers: { xRobo
     }
   }
 
-  let internal = 0, external = 0, emptyAnchor = 0, genericAnchor = 0
+  let internal = 0, external = 0, emptyAnchor = 0, genericAnchor = 0, blankWithoutNoopener = 0
   const base = new URL(finalUrl)
+  const internalUrls: string[] = []
+  const seenInternal = new Set<string>()
   const generic = new Set(['click here', 'here', 'read more', 'learn more', 'click', 'more', 'link'])
   for (const a of root.querySelectorAll('a')) {
     const href = a.getAttribute('href')
     if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) continue
     try {
       const resolved = new URL(href, base)
-      if (resolved.hostname === base.hostname) internal++
-      else external++
+      if (resolved.hostname === base.hostname) {
+        internal++
+        const clean = resolved.toString().split('#')[0]
+        if (!seenInternal.has(clean) && internalUrls.length < 20) { seenInternal.add(clean); internalUrls.push(clean) }
+      } else {
+        external++
+        const target = a.getAttribute('target')
+        const rel = (a.getAttribute('rel') ?? '').toLowerCase()
+        if (target === '_blank' && !rel.includes('noopener') && !rel.includes('noreferrer')) blankWithoutNoopener++
+      }
     } catch {
       // Unparseable href — counted nowhere, not a crash.
     }
@@ -163,7 +177,7 @@ export function extractEvidence(html: string, finalUrl: string, headers: { xRobo
     headings,
     canonical, robotsMeta, xRobotsTag: headers.xRobotsTag,
     imagesTotal: images.length, imagesMissingAlt: missing.length, imagesMissingAltExamples: missing,
-    internalLinks: internal, externalLinks: external,
+    internalLinks: internal, externalLinks: external, internalLinkUrls: internalUrls, blankWithoutNoopener,
     lang, viewport, charset,
     ogTitle: ogContent(root, 'og:title'), ogDescription: ogContent(root, 'og:description'),
     jsonLdCount, jsonLdTypes: [...new Set(jsonLdTypes)].slice(0, 10),
@@ -294,6 +308,54 @@ export function scoreOf(findings: Finding[]): { total: number; max: number; grad
     total, max, grade,
     gradeNote: 'Kluzar audit score, not a Google ranking. Fix the high-severity items first.',
   }
+}
+
+// Informational findings (v2, maxPoints 0 — they NEVER change the /100 score).
+// They report real evidence only: HTTPS of the final URL, presence of
+// security response headers (presence is not a security test), and
+// new-tab links missing noopener/noreferrer. A missing header is
+// "attention" with severity info, not a failed score item.
+export interface SecurityHeaders {
+  strictTransportSecurity: string | null
+  xContentTypeOptions: string | null
+  xFrameOptions: string | null
+  referrerPolicy: string | null
+  hasContentSecurityPolicy: boolean
+}
+
+export function runInformationalRules(ev: Evidence, finalUrl: string, headers: SecurityHeaders): Finding[] {
+  const out: Finding[] = []
+  const https = finalUrl.startsWith('https://')
+  out.push({
+    id: 'https', title: 'HTTPS', status: https ? 'pass' : 'attention', severity: https ? 'info' : 'high', points: 0, maxPoints: 0,
+    explanation: https ? 'The final URL uses HTTPS.' : 'The final URL does not use HTTPS.',
+    whyItMatters: 'HTTPS encrypts traffic between visitors and the site. Browsers warn on plain HTTP pages.',
+    evidence: `Final URL: ${finalUrl.slice(0, 300)}`,
+    recommendation: https ? 'No change needed for this check.' : 'Serve the site over HTTPS with a valid certificate and redirect HTTP to HTTPS.',
+  })
+  const present = [
+    headers.strictTransportSecurity ? 'HSTS: present' : 'HSTS: missing',
+    headers.xContentTypeOptions ? 'X-Content-Type-Options: present' : 'X-Content-Type-Options: missing',
+    headers.xFrameOptions ? 'X-Frame-Options: present' : 'X-Frame-Options: missing',
+    headers.hasContentSecurityPolicy ? 'Content-Security-Policy: present' : 'Content-Security-Policy: missing',
+    headers.referrerPolicy ? 'Referrer-Policy: present' : 'Referrer-Policy: missing',
+  ]
+  const missingCount = present.filter((s) => s.includes('missing')).length
+  out.push({
+    id: 'security-headers', title: 'Security response headers (presence only)', status: missingCount === 0 ? 'pass' : 'attention', severity: 'info', points: 0, maxPoints: 0,
+    explanation: missingCount === 0 ? 'All five checked security headers are present.' : `${missingCount} of 5 checked security headers are missing.`,
+    whyItMatters: 'These headers are a defence-in-depth signal. Their presence does not prove a site is secure, and their absence does not prove it is exploitable.',
+    evidence: present.join(' · '),
+    recommendation: missingCount === 0 ? 'No change needed for this check.' : 'Consider adding the missing headers at the server/CDN level, and test each one — a wrong header can break a site.',
+  })
+  out.push({
+    id: 'link-blank-noopener', title: 'New-tab links without noopener', status: ev.blankWithoutNoopener === 0 ? 'pass' : 'attention', severity: 'low', points: 0, maxPoints: 0,
+    explanation: ev.blankWithoutNoopener === 0 ? 'No external new-tab link is missing noopener/noreferrer.' : `${ev.blankWithoutNoopener} external link(s) open in a new tab without rel="noopener" or rel="noreferrer".`,
+    whyItMatters: 'Without noopener, a new-tab page can access the opener page. This is a static HTML signal, not a confirmed exploit.',
+    evidence: `${ev.blankWithoutNoopener} such link(s) found.`,
+    recommendation: ev.blankWithoutNoopener === 0 ? 'No change needed for this check.' : 'Add rel="noopener" to external links that use target="_blank".',
+  })
+  return out
 }
 
 // Premium-only findings, computed from the same HTML. These are NEVER

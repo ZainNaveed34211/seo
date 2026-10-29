@@ -1,4 +1,17 @@
-# Kluzar SEO Audit — seo.kluzar.com
+# Kluzar SEO
+
+## v2 — five tools (branch only, not yet on main)
+
+v2 rebuilds the product into five separate tools with separate screens: Basic SEO Audit, SEO Action Checklist, Search & Social Preview, Website Launch Checklist, and Website Quality Checklist. Starter limits are central in `src/limits.ts`. Premium is a tier in the Growth and Max packs (Starter is Free), with locked features described, never labelled operational, and no payment implemented. Premium endpoints stay 403 server-side.
+
+**Worker (do not rename):** Cloudflare Worker name is `kluzar-seo-audit`. Its canonical public URL is `https://seo-api.kluzar.com` (a custom domain on that Worker, verified 2026-10-29). `https://seo-api.kluzar-official.workers.dev` does NOT exist (404). `https://kluzar-seo-audit.kluzar-official.workers.dev` is an alias to the same Worker. Frontend uses only the build variable `VITE_WORKER_URL` — set it to `https://seo-api.kluzar.com`.
+
+**Favicon:** `public/favicon.svg` is a NEW lightweight SVG mark created for this SEO product. It is NOT claimed to be the official Kluzar logo file. The header uses a text wordmark, not a logo image.
+
+**Indexing limitation (honest):** this is a JavaScript-rendered single-page app with state-based tool screens, not separate routes. The sitemap lists only `https://seo.kluzar.com/` because there are no public tool URLs to list. Search engines may render JS imperfectly, so tool screens are not guaranteed to be indexed as separate pages.
+
+## v1 notes below (still accurate for the audit contract, except the Worker URL above)
+ — seo.kluzar.com
 
 A free, plain-English, page-level SEO audit. Frontend: React + TypeScript + Vite,
 hosted on **GitHub Pages** (custom domain `seo.kluzar.com`, base `/`).
@@ -77,7 +90,7 @@ never faked.
 
 1. Repo Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 2. Repo Settings → Variables → New repository variable: `VITE_WORKER_URL`
-   = your Worker URL, for example `https://kluzar-seo-audit.<account>.workers.dev`.
+   = your Worker URL, for example `https://seo-api.kluzar.com`.
    (The exact URL is shown after `wrangler deploy` — see `WORKER_SETUP.md`.)
 3. Push to `main` (only with your authorization — this branch does not deploy).
    The workflow in `.github/workflows/pages.yml` builds and deploys `dist/`.

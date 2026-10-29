@@ -1,10 +1,19 @@
-import type { AuditResponse, ApiError } from './types'
+import type { AuditResponse, ApiError, LaunchChecks } from './types'
+import { PACKS_URL } from './limits'
+export { PACKS_URL }
 
 // Worker URL is build-time public configuration, never a secret.
 // - Local dev (vite dev): leave empty, the Vite proxy forwards /api to
 //   a local Worker on http://localhost:8787.
 // - GitHub Pages production: build with VITE_WORKER_URL set to the real
-//   Worker URL, e.g. https://kluzar-seo-audit.<account>.workers.dev
+//   Worker URL, e.g. https://seo-api.kluzar.com
+//   seo-api.kluzar.com is the canonical public URL: it is a custom domain
+//   on the Cloudflare Worker named kluzar-seo-audit. The workers.dev
+//   alias https://kluzar-seo-audit.kluzar-official.workers.dev points
+//   to the same Worker. There is NO Worker named seo-api on workers.dev
+//   (seo-api.kluzar-official.workers.dev returns 404). Do not rename
+//   the Worker to seo-api — that would create a different Worker and
+//   break the custom-domain binding.
 //   (or the Worker's custom route, if one is configured later).
 // If it is empty in production, the app does NOT fake an audit — it tells
 // the user the Worker is not configured and offers the sample report.
@@ -97,4 +106,19 @@ export function downloadHtmlReport(report: AuditResponse) {
   a.download = 'kluzar-seo-audit.html'
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+export async function runLaunchChecks(url: string): Promise<LaunchChecks> {
+  const res = await fetch(`${apiBase()}/launch-checks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  const data = (await res.json().catch(() => null)) as LaunchChecks | ApiError | null
+  if (!res.ok || !data || 'error' in data) {
+    const err = (data as ApiError | null)?.error ?? `Launch check failed (HTTP ${res.status}).`
+    const code = (data as ApiError | null)?.code ?? 'LAUNCH_FAILED'
+    throw new Error(`${err} [${code}]`)
+  }
+  return data as LaunchChecks
 }

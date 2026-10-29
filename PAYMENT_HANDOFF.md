@@ -76,7 +76,7 @@ on the day you sign up and record the exact fee here before going live.
 - Set the price in the provider dashboard, not in Kluzar code. Prices in
   code would be a second source of truth and a bug waiting to happen.
 - Create a **webhook endpoint** pointing at the Worker, for example:
-  `POST https://kluzar-seo-audit.<account>.workers.dev/api/payment-webhook`
+  `POST https://seo-api.kluzar.com/api/payment-webhook`
   (the Worker route does not exist yet — it is built in step 5, and the
   hostname for payment itself is a separate decision: do not create DNS
   for a payment subdomain until you have approved it in the payment phase).

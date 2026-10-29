@@ -41,7 +41,7 @@ npx wrangler deploy
 ```
 
 After deploy, Wrangler prints the Worker URL, for example:
-`https://kluzar-seo-audit.<your-account-subdomain>.workers.dev`
+`https://seo-api.kluzar.com`
 Copy that exact URL — it is the `VITE_WORKER_URL` for the frontend build.
 
 Local development (no deploy, no login required for `--local`):
@@ -174,3 +174,9 @@ deploy the Worker and verify with the curl commands in §6.
    Premium multi-page crawling is not implemented, and must only be added
    with bounded page counts, same-origin limits, and the same SSRF controls
    per page.
+
+## v2 endpoints (additive, API contract still v1)
+
+- `POST /api/launch-checks` — robots.txt + sitemap availability for the audited origin only. No Analytics/Search Console connection.
+- `POST /api/audit` now also returns `brokenLinks` (up to 5 internal links, HEAD, 403/429/405/timeout = could-not-verify, never broken), `internalLinkCount`, `blankWithoutNoopener`, and 0-point informational findings (`https`, `security-headers`, `link-blank-noopener`). The /100 score is unchanged.
+- Deploy v2 code to the EXISTING Worker named `kluzar-seo-audit` (wrangler deploy from `worker/`). That updates `https://seo-api.kluzar.com` too, because it is the same Worker. Do NOT create a Worker named `seo-api`.

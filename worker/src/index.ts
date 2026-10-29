@@ -1,4 +1,5 @@
-import { extractEvidence, runFreeRules, scoreOf } from './audit'
+import { extractEvidence, runFreeRules, runInformationalRules, scoreOf } from './audit'
+import { checkBrokenLinks } from './links'
 import { isPremiumEntitled, PREMIUM_NOT_ENABLED } from './entitlements'
 import {
   FETCH_TIMEOUT_MS, MAX_BODY_BYTES, MAX_REDIRECTS,
@@ -8,9 +9,15 @@ import {
 // Kluzar SEO Worker — kluzar-seo-audit
 // Endpoints:
 //   GET  /api/health         — liveness, no audit, no fetch
-//   POST /api/audit          — free page audit (public pages only)
+//   POST /api/audit          — free page audit (public pages only) + bounded
+//                              broken-link check (5 internal links, Starter)
+//   POST /api/launch-checks  — robots.txt + sitemap availability for the
+//                              audited origin only (no Analytics/Search
+//                              Console connection, ever, in this release)
 //   POST /api/premium-audit  — always 403 in v1 (premium not enabled)
 //   OPTIONS *                — CORS preflight for the origins below
+// API contract is v1 and additive: v2 adds fields, it never changes the
+// /100 score (new findings are 0-point informational findings).
 //
 // CORS policy (no wildcard, ever):
 //   - Allowed: https://seo.kluzar.com, plus localhost / 127.0.0.1
@@ -93,7 +100,7 @@ async function readBodyWithLimit(response: Response): Promise<{ ok: true; text: 
 }
 
 async function fetchPublicPage(startUrl: URL): Promise<
-  | { ok: true; finalUrl: string; status: number; html: string; headers: { server: string | null; contentType: string | null; xRobotsTag: string | null }; redirectChain: { status: number; url: string }[] }
+  | { ok: true; finalUrl: string; status: number; html: string; headers: { server: string | null; contentType: string | null; xRobotsTag: string | null; strictTransportSecurity: string | null; xContentTypeOptions: string | null; xFrameOptions: string | null; referrerPolicy: string | null; hasContentSecurityPolicy: boolean }; redirectChain: { status: number; url: string }[] }
   | { ok: false; error: string; code: string; status: number }
 > {
   let current = startUrl
@@ -153,11 +160,49 @@ async function fetchPublicPage(startUrl: URL): Promise<
         server: response.headers.get('Server'),
         contentType,
         xRobotsTag: response.headers.get('X-Robots-Tag'),
+        strictTransportSecurity: response.headers.get('Strict-Transport-Security'),
+        xContentTypeOptions: response.headers.get('X-Content-Type-Options'),
+        xFrameOptions: response.headers.get('X-Frame-Options'),
+        referrerPolicy: response.headers.get('Referrer-Policy'),
+        hasContentSecurityPolicy: response.headers.get('Content-Security-Policy') !== null,
       },
       redirectChain: chain,
     }
   }
   return { ok: false, error: 'Too many redirects (over 5).', code: 'TOO_MANY_REDIRECTS', status: 502 }
+}
+
+
+async function fetchTextLimited(startUrl: URL): Promise<
+  | { ok: true; status: number; text: string }
+  | { ok: false; status: number | null }
+> {
+  let current = startUrl
+  for (let hop = 0; hop <= 3; hop++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    let response: Response
+    try {
+      response = await fetch(current.toString(), { method: 'GET', redirect: 'manual', signal: controller.signal, headers: { 'User-Agent': 'KluzarSEO-Audit/1.0 (+https://seo.kluzar.com/)', Accept: '*/*' } })
+    } catch {
+      clearTimeout(timer)
+      return { ok: false, status: null }
+    } finally { clearTimeout(timer) }
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get('Location')
+      await response.body?.cancel().catch(() => undefined)
+      if (!location || hop === 3) return { ok: false, status: response.status }
+      const next = resolveRedirect(current, location)
+      if (!next.ok) return { ok: false, status: null }
+      current = next.url
+      continue
+    }
+    const body = await readBodyWithLimit(response)
+    // readBodyWithLimit caps at 1.5 MB; for robots/sitemap this is generous.
+    if (!body.ok) return { ok: false, status: response.status }
+    return { ok: true, status: response.status, text: body.text.slice(0, 100000) }
+  }
+  return { ok: false, status: null }
 }
 
 export default {
@@ -222,7 +267,8 @@ export default {
       } catch {
         return safeError(request, false, 'Page HTML could not be analysed.', 'PARSE_FAILED', 502)
       }
-      const findings = runFreeRules(evidence)
+      const findings = [...runFreeRules(evidence), ...runInformationalRules(evidence, fetched.finalUrl, fetched.headers)]
+      const brokenLinks = await checkBrokenLinks(evidence.internalLinkUrls, 5)
       return json(request, false, {
         version: '1',
         auditedUrl: validated.url.toString(),
@@ -233,8 +279,60 @@ export default {
         headers: fetched.headers,
         findings,
         score: scoreOf(findings),
+        brokenLinks,
+        internalLinkCount: evidence.internalLinks,
+        blankWithoutNoopener: evidence.blankWithoutNoopener,
         premium: { available: false, reason: 'Premium audit is not enabled yet. Payment is a separate future integration.' },
         sample: false,
+      })
+    }
+
+
+    if (request.method === 'POST' && path === '/api/launch-checks') {
+      const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
+      const rate = limiter.check(ip)
+      if (!rate.allowed) {
+        return safeError(request, false, 'Too many checks from this address. Please wait a few minutes and try again.', 'RATE_LIMITED', 429, { 'Retry-After': String(rate.retryAfterSec) })
+      }
+      let body: unknown
+      try { body = await request.json() } catch {
+        return safeError(request, false, 'Request body must be JSON with a url field.', 'INVALID_REQUEST', 400)
+      }
+      const rawUrl = (body as { url?: unknown } | null)?.url
+      const validated = validateTargetUrl(rawUrl)
+      if (!validated.ok) return safeError(request, false, validated.error, validated.code, 400)
+      const origin = validated.url.origin
+      // robots.txt: same origin only, never a user-supplied second URL.
+      const robots = await fetchTextLimited(new URL(`${origin}/robots.txt`))
+      let robotsFound = false
+      const sitemapUrls: string[] = []
+      if (robots.ok && robots.status === 200 && !robots.text.trimStart().startsWith('<')) {
+        robotsFound = true
+        for (const line of robots.text.split(/\r?\n/)) {
+          const m = line.match(/^\s*Sitemap:\s*(\S+)/i)
+          if (m) sitemapUrls.push(m[1])
+        }
+      }
+      // Sitemap: first same-origin Sitemap: line from robots.txt, else /sitemap.xml.
+      let sitemapUrl: string | null = null
+      for (const candidate of sitemapUrls) {
+        try {
+          const u = new URL(candidate, origin)
+          if (u.origin === origin) { sitemapUrl = u.toString(); break }
+        } catch { /* ignore */ }
+      }
+      if (!sitemapUrl) sitemapUrl = `${origin}/sitemap.xml`
+      const sitemap = await fetchTextLimited(new URL(sitemapUrl))
+      const sitemapFound = sitemap.ok && sitemap.status === 200 && (sitemap.text.includes('<urlset') || sitemap.text.includes('<sitemapindex'))
+      return json(request, false, {
+        version: '1',
+        auditedUrl: validated.url.toString(),
+        origin,
+        https: validated.url.protocol === 'https:',
+        robotsTxt: { found: robotsFound, status: robots.ok ? robots.status : null, sitemapUrls: sitemapUrls.filter((u) => { try { return new URL(u, origin).origin === origin } catch { return false } }) },
+        sitemap: { found: sitemapFound, url: sitemapFound ? sitemapUrl : null, status: sitemap.ok ? sitemap.status : null },
+        checkedAt: new Date().toISOString(),
+        note: 'Availability only. Analytics and Search Console are manual reminders, not checked here.',
       })
     }
 
