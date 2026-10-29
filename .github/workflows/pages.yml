@@ -1,4 +1,7 @@
-# GitHub Pages deployment for seo.kluzar.com — v2 recommended workflow.
+# GitHub Pages deployment for seo.kluzar.com — v3 recommended workflow.
+# Changes vs the workflow already on main (v2): ONLY two env lines added
+# (VITE_PREMIUM_URL, VITE_AUTH_URL). Everything else is identical — do not
+# overwrite the existing workflow silently; paste this manually only if approved.
 # Paste this file manually via the GitHub website (the API cannot create
 # workflow files without workflows permission). It deploys ONLY on pushes
 # to main, so pushing a feature branch does NOT deploy anything.
@@ -9,6 +12,10 @@
 #   - Repository variable VITE_PACKS_URL = pack-selection URL, or leave
 #     unset while pack selection is not live (locked features then show
 #     an honest "not live yet" message instead of a fake payment link)
+#   - Repository variable VITE_PREMIUM_URL = premium destination URL, or
+#     leave unset (Go Premium then shows "not live yet", no fake link)
+#   - Repository variable VITE_AUTH_URL = login/session destination, or
+#     leave unset (every user is Starter/Free, Login explains it is not live)
 # No Worker secrets, no GitHub tokens, and no payment credentials are
 # used in this workflow. VITE_* variables are public build configuration.
 name: Deploy to GitHub Pages
@@ -40,6 +47,8 @@ jobs:
         env:
           VITE_WORKER_URL: ${{ vars.VITE_WORKER_URL }}
           VITE_PACKS_URL: ${{ vars.VITE_PACKS_URL }}
+          VITE_PREMIUM_URL: ${{ vars.VITE_PREMIUM_URL }}
+          VITE_AUTH_URL: ${{ vars.VITE_AUTH_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
