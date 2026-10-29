@@ -1,6 +1,9 @@
 import type { AuditResponse, ApiError, LaunchChecks } from './types'
-import { PACKS_URL } from './limits'
-export { PACKS_URL }
+export { PREMIUM_DESTINATION_URL } from './limits'
+// Client URL validation now lives in ./url.ts (normalizeUrl). The old
+// clientValidateUrl rejected bare domains; normalizeUrl fixes that by
+// prepending https://, mirroring the Worker policy. The Worker remains
+// authoritative and re-validates every submission server-side.
 
 // Worker URL is build-time public configuration, never a secret.
 // - Local dev (vite dev): leave empty, the Vite proxy forwards /api to
@@ -23,33 +26,28 @@ export function apiBase(): string {
   return WORKER_URL ? `${WORKER_URL}/api` : '/api'
 }
 
-export function clientValidateUrl(raw: string): string | null {
-  // Client-side validation is UX only. The Worker re-validates everything
-  // server-side; a client pass never grants a server pass.
-  const value = raw.trim()
-  if (!value) return 'Enter a URL to audit.'
-  if (value.length > 2048) return 'That URL is too long (max 2048 characters).'
-  let parsed: URL
+async function fetchJson(path: string, body: unknown, timeoutMs = 45000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    parsed = new URL(value)
-  } catch {
-    return 'That does not look like a valid URL. Include https://, for example https://example.com/'
+    return await fetch(`${apiBase()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Analysis timed out. The target site may be slow, blocking requests, or unreachable. Try again, or try a different page.')
+    }
+    throw new Error('Could not reach the analysis service. Check your connection and try again.')
+  } finally {
+    clearTimeout(timer)
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Only http:// and https:// URLs can be audited.'
-  if (parsed.username || parsed.password) return 'URLs with a username or password cannot be audited.'
-  const host = parsed.hostname.toLowerCase()
-  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') || !host.includes('.')) {
-    return 'That looks like a private or local address. Only public websites can be audited.'
-  }
-  return null
 }
 
 export async function runAudit(url: string): Promise<AuditResponse> {
-  const res = await fetch(`${apiBase()}/audit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-  })
+  const res = await fetchJson('/audit', { url })
   const data = (await res.json().catch(() => null)) as AuditResponse | ApiError | null
   if (!res.ok || !data || 'error' in data) {
     const err = (data as ApiError | null)?.error ?? `Audit failed (HTTP ${res.status}).`
@@ -109,11 +107,7 @@ export function downloadHtmlReport(report: AuditResponse) {
 }
 
 export async function runLaunchChecks(url: string): Promise<LaunchChecks> {
-  const res = await fetch(`${apiBase()}/launch-checks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-  })
+  const res = await fetchJson('/launch-checks', { url })
   const data = (await res.json().catch(() => null)) as LaunchChecks | ApiError | null
   if (!res.ok || !data || 'error' in data) {
     const err = (data as ApiError | null)?.error ?? `Launch check failed (HTTP ${res.status}).`

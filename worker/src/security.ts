@@ -60,48 +60,88 @@ export function isPrivateIpv6(host: string): boolean {
   return false
 }
 
-export function validateTargetUrl(raw: unknown): { ok: true; url: URL } | { ok: false; error: string; code: string } {
+// URL NORMALIZATION POLICY (client and server share this policy; the
+// frontend module src/url.ts mirrors it for UX, the Worker is authoritative).
+//   - Trim surrounding whitespace.
+//   - Empty input, plain text without a valid hostname, and malformed
+//     hostnames are rejected — arbitrary text is never turned into a site.
+//   - A bare domain (example.com, www.example.com, example.com/about) has
+//     NO scheme, so https:// is prepended. Bare domains prefer HTTPS.
+//   - An explicit http:// URL is allowed (policy allows it); an explicit
+//     https:// URL is never downgraded to http://.
+//   - Any other scheme (javascript:, file:, ftp:, data:, etc.) is rejected,
+//     with or without "//".
+//   - URLs with a username/password, a non-80/443 port, a localhost or
+//     private/internal hostname, or a hostname without a dot (and not an IP
+//     literal) are rejected.
+//   - Internationalized domains are handled by the URL parser, which
+//     converts them to punycode (münchen.de -> xn--mnchen-3ya.de).
+//   - The fragment is stripped (it is never sent to the server). The path
+//     and query are preserved.
+export function normalizeTargetUrl(raw: unknown): { ok: true; url: URL } | { ok: false; error: string; code: string } {
   if (typeof raw !== 'string') return { ok: false, error: 'URL must be a string.', code: 'INVALID_URL' }
   const value = raw.trim()
-  if (!value) return { ok: false, error: 'Enter a URL to audit.', code: 'INVALID_URL' }
+  if (!value) return { ok: false, error: 'Enter a URL to analyze.', code: 'INVALID_URL' }
   if (value.length > 2048) return { ok: false, error: 'URL is too long (max 2048 characters).', code: 'INVALID_URL' }
+  if (/\s/.test(value)) return { ok: false, error: 'That does not look like a valid URL. Check for spaces and try again.', code: 'INVALID_URL' }
+  const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/)
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase()
+    if (scheme !== 'http' && scheme !== 'https') {
+      return { ok: false, error: 'Only http:// and https:// URLs can be analyzed.', code: 'INVALID_URL' }
+    }
+  }
+  const withScheme = schemeMatch ? value : `https://${value}`
   let url: URL
   try {
-    url = new URL(value)
+    url = new URL(withScheme)
   } catch {
-    return { ok: false, error: 'That does not look like a valid URL. Include https://.', code: 'INVALID_URL' }
+    return { ok: false, error: 'That does not look like a valid URL. Try a domain like example.com or a full URL like https://example.com/about', code: 'INVALID_URL' }
   }
+  return validateParsedUrl(url)
+}
+
+function validateParsedUrl(url: URL): { ok: true; url: URL } | { ok: false; error: string; code: string } {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return { ok: false, error: 'Only http:// and https:// URLs can be audited.', code: 'INVALID_URL' }
+    return { ok: false, error: 'Only http:// and https:// URLs can be analyzed.', code: 'INVALID_URL' }
   }
   if (url.username || url.password) {
-    return { ok: false, error: 'URLs with a username or password cannot be audited.', code: 'INVALID_URL' }
+    return { ok: false, error: 'URLs with a username or password cannot be analyzed.', code: 'INVALID_URL' }
   }
   const host = url.hostname.toLowerCase().replace(/\.$/, '')
   if (!host) return { ok: false, error: 'URL has no hostname.', code: 'INVALID_URL' }
   if (BLOCKED_HOSTS.has(host) || host === 'localhost') {
-    return { ok: false, error: 'Private and local addresses cannot be audited.', code: 'PRIVATE_TARGET' }
+    return { ok: false, error: 'Private and local addresses cannot be analyzed.', code: 'PRIVATE_TARGET' }
   }
   if (BLOCKED_SUFFIXES.some((s) => host.endsWith(s))) {
-    return { ok: false, error: 'Private and local addresses cannot be audited.', code: 'PRIVATE_TARGET' }
+    return { ok: false, error: 'Private and local addresses cannot be analyzed.', code: 'PRIVATE_TARGET' }
   }
   if (!host.includes('.') && !host.includes(':')) {
-    return { ok: false, error: 'Only public websites with a domain name can be audited.', code: 'PRIVATE_TARGET' }
+    return { ok: false, error: 'Only public websites with a domain name can be analyzed.', code: 'PRIVATE_TARGET' }
   }
   if (isIpv4(host) && isPrivateIpv4(host)) {
-    return { ok: false, error: 'Private and local addresses cannot be audited.', code: 'PRIVATE_TARGET' }
+    return { ok: false, error: 'Private and local addresses cannot be analyzed.', code: 'PRIVATE_TARGET' }
   }
   if (host.includes(':') && isPrivateIpv6(host)) {
-    return { ok: false, error: 'Private and local addresses cannot be audited.', code: 'PRIVATE_TARGET' }
+    return { ok: false, error: 'Private and local addresses cannot be analyzed.', code: 'PRIVATE_TARGET' }
   }
   // Port scanning defence: public pages live on 80/443. Non-standard ports
   // are blocked rather than probed.
   if (url.port && url.port !== '80' && url.port !== '443') {
-    return { ok: false, error: 'Only standard web ports (80 and 443) can be audited.', code: 'INVALID_URL' }
+    return { ok: false, error: 'Only standard web ports (80 and 443) can be analyzed.', code: 'INVALID_URL' }
   }
   // Strip any fragment — it is never sent to the server anyway.
   url.hash = ''
   return { ok: true, url }
+}
+
+export function validateTargetUrl(raw: unknown): { ok: true; url: URL } | { ok: false; error: string; code: string } {
+  // validateTargetUrl now normalizes first (bare domain -> https), then
+  // validates. Existing callers (audit, launch-checks, redirects) get the
+  // new behaviour without any other change. Redirects are resolved with
+  // new URL(location, current) first, so they always carry a scheme and
+  // are validated by validateParsedUrl via this same path.
+  return normalizeTargetUrl(raw)
 }
 
 export function resolveRedirect(current: URL, location: string): ReturnType<typeof validateTargetUrl> {

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { LIMITS, PACKS_URL } from '../limits'
-import { runLaunchChecks, WORKER_URL } from '../api'
+import { LIMITS, PREMIUM_DESTINATION_URL } from '../limits'
 import type { AuditResponse, Finding, LaunchChecks } from '../types'
 
 // ---- Shared: honestly-described local storage ---------------------------
@@ -35,15 +34,29 @@ function Progress({ done, total }: { done: number; total: number }) {
   )
 }
 
-function LockedNote({ feature }: { feature: string }) {
+export function LockedNote({ feature }: { feature: string }) {
   return (
     <div className="locked">
       <strong>LOCKED — Premium</strong>
       <p>{feature} is a planned Premium feature. It is not operational in this release, and no payment is taken here.</p>
-      {PACKS_URL ? (
-        <p><a href={PACKS_URL}>View packs: Starter (Free), Growth (Paid), Max (Paid) →</a></p>
+      {PREMIUM_DESTINATION_URL ? (
+        <p><a href={PREMIUM_DESTINATION_URL}>Go Premium →</a></p>
       ) : (
-        <p>Pack selection is not live yet — the destination subdomain has not been configured, so no payment link is shown. Premium features are included in the Growth and Max packs when they launch.</p>
+        <p>Premium is not live yet — the premium destination has not been configured, so no payment link is shown here.</p>
+      )}
+    </div>
+  )
+}
+
+export function GoPremium() {
+  return (
+    <div className="go-premium">
+      <strong>Go Premium</strong>
+      <p>Unlock full broken-link scans, premium audit findings, branded reports, and multi-page quality scans when premium entitlements launch. No payment is taken on this page.</p>
+      {PREMIUM_DESTINATION_URL ? (
+        <a className="go-premium-link" href={PREMIUM_DESTINATION_URL}>Go Premium →</a>
+      ) : (
+        <p>Premium destination is not configured yet, so no link is shown here. This button does not charge anything and does not create an account.</p>
       )}
     </div>
   )
@@ -142,10 +155,7 @@ const LAUNCH_MANUAL: LaunchTask[] = [
   { id: 'launch-legal', title: 'Privacy / contact pages present', kind: 'Manual', detail: 'Confirm privacy and contact pages exist and are linked, if your site needs them.' },
 ]
 
-export function LaunchChecklist({ report }: { report: AuditResponse | null }) {
-  const [checks, setChecks] = useState<LaunchChecks | null>(null)
-  const [checking, setChecking] = useState(false)
-  const [error, setError] = useState('')
+export function LaunchChecklist({ report, launchChecks, launchError }: { report: AuditResponse | null; launchChecks: LaunchChecks | null; launchError: string }) {
   const [done, toggle, reset] = useLocalChecklist('kluzar-seo-launch-checklist', LAUNCH_MANUAL.map((t) => t.id))
 
   const auto: LaunchTask[] = []
@@ -166,13 +176,6 @@ export function LaunchChecklist({ report }: { report: AuditResponse | null }) {
   const autoDone = auto.filter((t) => t.detail.startsWith('Passed') || t.detail.startsWith('No blocking') || t.detail.startsWith('Viewport tag present') || t.detail.startsWith('Final URL uses') || t.detail.startsWith('All images') || t.detail.startsWith('Internal links found')).length
   const totalDone = autoDone + LAUNCH_MANUAL.filter((t) => done.includes(t.id)).length
 
-  async function onCheck() {
-    if (!report) return
-    if (!WORKER_URL) { setError('Launch auto-check needs the Worker URL. Set VITE_WORKER_URL at build time.'); return }
-    setChecking(true); setError('')
-    try { setChecks(await runLaunchChecks(report.finalUrl)) } catch (e) { setError(e instanceof Error ? e.message : 'Launch check failed.') } finally { setChecking(false) }
-  }
-
   return (
     <div className="tool">
       <p className="tool-kicker">TOOL 4 · <span className="tier free">FREE</span></p>
@@ -191,22 +194,17 @@ export function LaunchChecklist({ report }: { report: AuditResponse | null }) {
         ))}
       </ul>
       <div className="card">
-        <h3>Robots.txt &amp; sitemap — live check <span className="tier free">FREE</span></h3>
-        {report ? (
-          <>
-            <button type="button" onClick={onCheck} disabled={checking}>{checking ? 'Checking…' : 'Check robots.txt & sitemap for the audited site →'}</button>
-            {error && <p className="error" role="alert">{error}</p>}
-            {checks && (
-              <dl className="meta-list">
-                <div><dt>Site origin</dt><dd>{checks.origin} — HTTPS: {checks.https ? 'yes' : 'no'}</dd></div>
-                <div><dt>robots.txt</dt><dd>{checks.robotsTxt.found ? `Found (HTTP ${checks.robotsTxt.status})` : 'Not found'} {checks.robotsTxt.sitemapUrls.length > 0 && `· Sitemap lines: ${checks.robotsTxt.sitemapUrls.join(', ')}`}</dd></div>
-                <div><dt>Sitemap</dt><dd>{checks.sitemap.found ? `Found at ${checks.sitemap.url} (HTTP ${checks.sitemap.status})` : 'Not found at the checked locations'}</dd></div>
-                <div><dt>Checked at</dt><dd>{new Date(checks.checkedAt).toLocaleString()}</dd></div>
-              </dl>
-            )}
-            <p className="help">This checks only robots.txt and sitemap availability for the audited origin. It does not check Search Console, indexing status, or whether the sitemap content is valid XML in full.</p>
-          </>
-        ) : <p className="help">Run a Basic Audit first, then this button will check that site's robots.txt and sitemap.</p>}
+        <h3>Robots.txt &amp; sitemap — checked with the same analysis <span className="tier free">FREE</span></h3>
+        {launchError && <p className="error" role="alert">{launchError}</p>}
+        {launchChecks ? (
+          <dl className="meta-list">
+            <div><dt>Site origin</dt><dd>{launchChecks.origin} — HTTPS: {launchChecks.https ? 'yes' : 'no'}</dd></div>
+            <div><dt>robots.txt</dt><dd>{launchChecks.robotsTxt.found ? `Found (HTTP ${launchChecks.robotsTxt.status})` : 'Not found'} {launchChecks.robotsTxt.sitemapUrls.length > 0 && `· Sitemap lines: ${launchChecks.robotsTxt.sitemapUrls.join(', ')}`}</dd></div>
+            <div><dt>Sitemap</dt><dd>{launchChecks.sitemap.found ? `Found at ${launchChecks.sitemap.url} (HTTP ${launchChecks.sitemap.status})` : 'Not found at the checked locations'}</dd></div>
+            <div><dt>Checked at</dt><dd>{new Date(launchChecks.checkedAt).toLocaleString()}</dd></div>
+          </dl>
+        ) : !launchError && <p className="help">Robots.txt and sitemap were not checked live for this report (for example, a sample report). The automatic items above still come from the audit itself.</p>}
+        <p className="help">This checks only robots.txt and sitemap availability for the audited origin. It does not check Search Console, indexing status, or whether the sitemap content is valid XML in full.</p>
       </div>
       {LAUNCH_MANUAL.length > 0 && <button type="button" onClick={reset}>Reset manual progress</button>}
     </div>

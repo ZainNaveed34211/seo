@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AuditResponse } from '../types'
 
 // Search & Social Preview — an INDEPENDENT tool, not a section of the audit.
@@ -8,13 +8,23 @@ import type { AuditResponse } from '../types'
 export default function PreviewTool({ report }: { report: AuditResponse | null }) {
   const metaTitle = report?.findings.find((f) => f.id === 'title-present')?.evidence ?? ''
   const metaDesc = report?.findings.find((f) => f.id === 'description-present')?.evidence ?? ''
+  const fetchedTitle = extractQuoted(metaTitle)
+  const fetchedDesc = extractQuoted(metaDesc)
   const [url, setUrl] = useState(report?.finalUrl ?? 'https://example.com/')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [useAuditMeta, setUseAuditMeta] = useState(false)
-
-  const shownTitle = useAuditMeta && report ? extractQuoted(metaTitle) : title
-  const shownDesc = useAuditMeta && report ? extractQuoted(metaDesc) : description
+  const [title, setTitle] = useState(fetchedTitle)
+  const [description, setDescription] = useState(fetchedDesc)
+  const [edited, setEdited] = useState(false)
+  useEffect(() => {
+    if (report) {
+      setUrl(report.finalUrl)
+      setTitle(fetchedTitle)
+      setDescription(fetchedDesc)
+      setEdited(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report?.finalUrl])
+  const shownTitle = title
+  const shownDesc = description
 
   const titleLen = [...shownTitle].length
   const descLen = [...shownDesc].length
@@ -33,9 +43,9 @@ export default function PreviewTool({ report }: { report: AuditResponse | null }
   function loadFromAudit() {
     if (!report) return
     setUrl(report.finalUrl)
-    setUseAuditMeta(true)
-    setTitle('')
-    setDescription('')
+    setTitle(fetchedTitle)
+    setDescription(fetchedDesc)
+    setEdited(false)
   }
 
   return (
@@ -54,19 +64,16 @@ export default function PreviewTool({ report }: { report: AuditResponse | null }
           <label htmlFor="preview-url">Page URL (display only)</label>
           <input id="preview-url" type="text" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} />
           <label htmlFor="preview-title">Title</label>
-          <input id="preview-title" type="text" value={useAuditMeta ? shownTitle : title} disabled={useAuditMeta} onChange={(e) => { setUseAuditMeta(false); setTitle(e.target.value) }} placeholder="Your page title" />
+          <input id="preview-title" type="text" value={title} onChange={(e) => { setTitle(e.target.value); setEdited(true) }} placeholder="Your page title" />
           <p className="count">{titleLen} / 60 characters (guide)</p>
           <label htmlFor="preview-desc">Description</label>
-          <textarea id="preview-desc" rows={4} value={useAuditMeta ? shownDesc : description} disabled={useAuditMeta} onChange={(e) => { setUseAuditMeta(false); setDescription(e.target.value) }} placeholder="A short description of the page" />
+          <textarea id="preview-desc" rows={4} value={description} onChange={(e) => { setDescription(e.target.value); setEdited(true) }} placeholder="A short description of the page" />
           <p className="count">{descLen} / 160 characters (guide)</p>
-          {report ? (
-            <button type="button" onClick={loadFromAudit} disabled={useAuditMeta}>
-              {useAuditMeta ? 'Using audited page metadata' : 'Load actual metadata from the latest audit'}
-            </button>
-          ) : (
-            <p className="help">Run a Basic Audit first to load that page's actual title and description here. Until then, this preview uses only what you type.</p>
+          {report && (
+            <button type="button" onClick={loadFromAudit}>Reset to fetched metadata</button>
           )}
-          {useAuditMeta && <p className="help">Showing actual audited metadata (read-only). Clear the audit metadata by typing in a field above — that switches back to your edited preview, clearly separate from the real page.</p>}
+          {report && !edited && <p className="help">Showing fetched metadata from the audited page. Edit a field to see an edited preview — the live page does not change.</p>}
+          {edited && <p className="help"><strong>Edited preview:</strong> this text is your local edit only, not the live page's metadata. Use "Reset to fetched metadata" to go back to the audited values.</p>}
           {warnings.length > 0 && (
             <div className="warnings" role="status">
               <strong>Warnings</strong>

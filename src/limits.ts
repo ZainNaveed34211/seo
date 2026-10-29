@@ -12,23 +12,19 @@
 
 export type Tier = 'free' | 'premium'
 
-export interface Pack {
-  name: 'Starter' | 'Growth' | 'Max'
-  billing: 'Free' | 'Paid'
-  note: string
-}
-
-export const PACKS: Pack[] = [
-  { name: 'Starter', billing: 'Free', note: 'Free tier. All five tools with Starter limits below.' },
-  { name: 'Growth', billing: 'Paid', note: 'Paid pack. Includes Premium features when entitlements are enabled.' },
-  { name: 'Max', billing: 'Paid', note: 'Paid pack. Includes Premium features when entitlements are enabled.' },
-]
-
-// Pack-selection destination: configurable, never invented.
-// Set VITE_PACKS_URL to the real pack-selection subdomain when it exists.
-// While it is empty, locked-feature buttons show an honest "not live yet"
-// message instead of linking to a fake payment page.
-export const PACKS_URL = (import.meta.env.VITE_PACKS_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+// FUTURE PREMIUM DESTINATION — single configuration setting, never a
+// hardcoded unconfirmed URL and never a pricing table on the SEO page.
+//   - Set VITE_PREMIUM_URL when the premium account/login subdomain is
+//     confirmed, OR set VITE_PACKS_URL (already in the existing workflow)
+//     when the payment subdomain is confirmed.
+//   - While both are empty, Go Premium shows an honest "not live yet"
+//     message instead of linking anywhere. No prices are defined here:
+//     Starter (Free), Growth (Paid), and Max (Paid) live on the future
+//     payment subdomain, not on this page, and are never displayed here.
+export const PREMIUM_DESTINATION_URL =
+  (import.meta.env.VITE_PREMIUM_URL as string | undefined)?.replace(/\/$/, '') ??
+  (import.meta.env.VITE_PACKS_URL as string | undefined)?.replace(/\/$/, '') ??
+  ''
 
 export const LIMITS = {
   // Basic Audit (free): one page, scored findings, bounded broken-link check.
