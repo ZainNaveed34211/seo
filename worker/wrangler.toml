@@ -1,0 +1,21 @@
+# Kluzar SEO Worker — DISTINCT name, do not reuse for another project.
+# This Worker must NOT replace any existing Worker. If a Worker with this
+# name already exists in your Cloudflare account and it is not this SEO
+# Worker, stop and choose a different name here before deploying.
+name = "kluzar-seo-audit"
+main = "src/index.ts"
+compatibility_date = "2024-06-20"
+compatibility_flags = ["nodejs_compat"]
+
+# No bindings in v1: no KV, no D1, no R2, no secrets are required for the
+# free audit. ALLOWED_ORIGINS is an optional plain (non-secret) variable:
+# it is NOT used to bypass the hardcoded seo.kluzar.com rule in index.ts
+# unless you also change that code — do not set it to '*', ever.
+# [vars]
+# ALLOWED_ORIGINS = "https://seo.kluzar.com"
+
+# Future payment/entitlement secrets (DO NOT create these now — see
+# PAYMENT_HANDOFF.md). When payment is configured, these are set with
+# `wrangler secret put <NAME>`, never committed to this file:
+#   PAYMENT_PROVIDER_WEBHOOK_SECRET
+#   PREMIUM_SIGNING_KEY
