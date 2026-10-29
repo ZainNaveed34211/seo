@@ -1,11 +1,16 @@
-# GitHub Pages deployment for seo.kluzar.com.
-# This workflow only runs on pushes to main, so pushing a feature branch
-# (for example seo-audit-v1) does NOT deploy anything.
-# Before the first deploy from main, set the repository's Pages source to
-# "GitHub Actions" in Settings > Pages, and set the repository variable
-# VITE_WORKER_URL to the Worker URL (see WORKER_SETUP.md). If the variable
-# is not set, the build still succeeds, but live audits show a clear
-# "Worker not configured" message instead of faking an audit.
+# GitHub Pages deployment for seo.kluzar.com — v2 recommended workflow.
+# Paste this file manually via the GitHub website (the API cannot create
+# workflow files without workflows permission). It deploys ONLY on pushes
+# to main, so pushing a feature branch does NOT deploy anything.
+# Before the first deploy from main:
+#   - Settings > Pages source = "GitHub Actions"
+#   - Repository variable VITE_WORKER_URL = https://seo-api.kluzar.com
+#     (canonical public Worker URL; kluzar-seo-audit is the Worker name)
+#   - Repository variable VITE_PACKS_URL = pack-selection URL, or leave
+#     unset while pack selection is not live (locked features then show
+#     an honest "not live yet" message instead of a fake payment link)
+# No Worker secrets, no GitHub tokens, and no payment credentials are
+# used in this workflow. VITE_* variables are public build configuration.
 name: Deploy to GitHub Pages
 on:
   push:
@@ -34,6 +39,7 @@ jobs:
       - run: npm run build
         env:
           VITE_WORKER_URL: ${{ vars.VITE_WORKER_URL }}
+          VITE_PACKS_URL: ${{ vars.VITE_PACKS_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
