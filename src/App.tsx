@@ -391,10 +391,10 @@ export default function App() {
             <ul>
               <li><a href="mailto:info@kluzar.com">info@kluzar.com</a></li>
               <li><a href="mailto:support@kluzar.com">support@kluzar.com</a></li>
-              <li><a href="https://kluzar.com/terms.html">Terms of Service</a></li>
-              <li><a href="https://kluzar.com/privacy.html">Privacy Policy</a></li>
-              <li><a href="https://kluzar.com/refund.html">Refund Policy</a></li>
-              <li><a href="https://kluzar.com/payment-terms.html">Payment Terms</a></li>
+              <li><a href="https://kluzar.com/terms/">Terms of Service</a></li>
+              <li><a href="https://kluzar.com/privacy/">Privacy Policy</a></li>
+              <li><a href="https://kluzar.com/refund/">Refund Policy</a></li>
+              <li><a href="https://kluzar.com/payment-terms/">Payment Terms</a></li>
             </ul>
           </nav>
         </div>
