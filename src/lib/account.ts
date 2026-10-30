@@ -1,14 +1,12 @@
-// ACCOUNT & PLAN — navigation destinations are confirmed, but there is NO
-// session integration configured for this page yet, so the plan shown is
-// Starter (Free) unless a real session endpoint is configured at build
-// time. A login link, a localStorage flag, or a frontend value is NEVER
-// proof of a paid plan — only a trusted backend response is.
+// ACCOUNT & PLAN — the plan is fetched from the real accounts session
+// on every page load: GET {SESSION_URL}/session with credentials. The
+// server's entitlement ({plan, status, premium}) is the only proof of
+// a paid plan — a login link, a localStorage flag, or a frontend value
+// is NEVER proof.
 //   - Login / signup destination: https://accounts.kluzar.com
 //   - Premium / payment destination: https://payments.kluzar.com
 //     (plans, options and payments live there, never on this page, and
 //     no prices are shown here.)
-// If VITE_AUTH_SESSION_URL is ever set, it must point at a real session
-// endpoint returning { authenticated: boolean, plan?: string }.
 // Build-time values: an explicitly set variable wins, but an EMPTY value
 // (what GitHub Actions passes for an unset repository variable) counts as
 // unset — otherwise a link silently becomes href="" and looks dead.
