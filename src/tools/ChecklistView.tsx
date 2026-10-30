@@ -1,8 +1,8 @@
 import { FindingCard } from '../components/components'
 import type { Finding } from '../lib/types'
 
-export default function ChecklistView(props: { issues: Finding[] }) {
-  const { issues } = props
+export default function ChecklistView(props: { issues: Finding[]; isPremium: boolean }) {
+  const { issues, isPremium } = props
   return (
     <div>
       <p className="muted">
@@ -14,7 +14,7 @@ export default function ChecklistView(props: { issues: Finding[] }) {
       ) : (
         <div className="findings-list">
           {issues.map((f) => (
-            <FindingCard key={f.id} finding={f} showWhy />
+            <FindingCard key={f.id} finding={f} showWhy isPremium={isPremium} />
           ))}
         </div>
       )}

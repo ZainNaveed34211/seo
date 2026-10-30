@@ -84,6 +84,19 @@ button { font: inherit; }
   white-space: nowrap;
 }
 
+/* Premium plan pill: violet accent only (logo palette). The tint uses the
+   same violet as --accent-2 in each theme, so it stays readable in both
+   light and dark modes. */
+.plan-pill.premium {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  background: rgba(124, 92, 255, .10);
+  font-weight: 700;
+}
+[data-theme="dark"] .plan-pill.premium {
+  background: rgba(157, 140, 255, .16);
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -278,6 +291,26 @@ button { font: inherit; }
 .sev-medium { color: #b45309; }
 .sev-low, .sev-info { color: var(--muted); }
 
+/* Premium-only action labels on finding rows. Colors reuse the existing
+   report status palette only (green / violet / amber / muted) — no new
+   color is introduced. Free rows render no label at all. */
+.action-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.action-none { background: #dcfce7; color: #166534; }
+.action-do { background: rgba(124, 92, 255, .10); color: var(--accent-2); }
+.action-change { background: #fef3c7; color: #92400e; }
+.action-unknown { background: #f3f4f6; color: #6b7280; }
+[data-theme="dark"] .action-none { background: #14532d; color: #bbf7d0; }
+[data-theme="dark"] .action-do { background: rgba(157, 140, 255, .16); color: var(--accent-2); }
+[data-theme="dark"] .action-change { background: #451a03; color: #fde68a; }
+[data-theme="dark"] .action-unknown { background: #262a45; color: #9aa0c3; }
+
 .link-btn {
   background: none;
   border: none;
@@ -386,6 +419,50 @@ button { font: inherit; }
 
 /* Premium upsell card: violet accent edge, gentle lift on hover. */
 .premium-upsell { border-left: 4px solid var(--accent-2); transition: transform .15s ease, box-shadow .15s ease; }
+
+/* Premium-only markers: visual + plan label only. They never add, imply,
+   or unlock premium data — the report content is identical for every plan. */
+.premium-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 10px;
+  border: 1px solid var(--accent-2);
+  border-radius: 999px;
+  background: rgba(124, 92, 255, .10);
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+[data-theme="dark"] .premium-badge {
+  background: rgba(157, 140, 255, .16);
+}
+.premium-strip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent-2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.premium-strip strong { color: var(--accent-2); }
+
+/* Premium report view: color treatment, premium users ONLY. The free
+   report keeps the plain cards and header — nothing here applies without
+   the .premium-report class, which App renders only when the server
+   premium boolean is true. Solid violet tints only, no gradients. */
+.results.premium-report .results-head {
+  border-bottom: 2px solid var(--accent-2);
+  padding-bottom: 12px;
+}
+.results.premium-report .score-card {
+  border-color: var(--accent-2);
+  background: rgba(124, 92, 255, .08);
+}
+[data-theme="dark"] .results.premium-report .score-card {
+  background: rgba(157, 140, 255, .12);
+}
 .premium-upsell:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20, 18, 114, .12); }
 .premium-upsell-head { display: flex; gap: 10px; align-items: center; }
 .premium-upsell-head h3 { margin: 0; }

@@ -23,7 +23,7 @@ export function Header(props: {
           <a href="https://support.kluzar.com/" className="nav-link">Support</a>
         </nav>
         <div className="header-actions">
-          <span className="plan-pill" title="Your current plan">{planLabel}</span>
+          <span className={isPremium ? 'plan-pill premium' : 'plan-pill'} title="Your current plan">{planLabel}</span>
           <a href={ACCOUNT_LOGIN_URL} className="icon-btn" aria-label="Account — sign in or sign up" title="Account">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="8" r="4" />
@@ -86,8 +86,25 @@ export function SeverityTag(props: { severity: Finding['severity'] }) {
   return <span className={`sev sev-${severity}`}>{text}</span>
 }
 
-export function FindingCard(props: { finding: Finding; showWhy?: boolean }) {
-  const { finding: f, showWhy } = props
+// Premium-only action label, derived from the finding's EXISTING status
+// and severity — it adds no data and changes no finding. Display rule,
+// stated plainly: a passed check needs nothing; an unchecked item has no
+// action yet; a high-severity attention item is a correction ("Change
+// this"); any other attention item is a task ("Do this").
+export function actionLabelFor(f: Finding): { text: string; kind: 'none' | 'do' | 'change' | 'unknown' } {
+  if (f.status === 'pass') return { text: 'No action', kind: 'none' }
+  if (f.status === 'not_checked') return { text: 'Not checked', kind: 'unknown' }
+  if (f.severity === 'high') return { text: 'Change this', kind: 'change' }
+  return { text: 'Do this', kind: 'do' }
+}
+
+export function ActionLabel(props: { finding: Finding }) {
+  const { text, kind } = actionLabelFor(props.finding)
+  return <span className={`action-label action-${kind}`}>{text}</span>
+}
+
+export function FindingCard(props: { finding: Finding; showWhy?: boolean; isPremium?: boolean }) {
+  const { finding: f, showWhy, isPremium } = props
   return (
     <article className="finding-card">
       <div className="finding-head">
@@ -101,10 +118,10 @@ export function FindingCard(props: { finding: Finding; showWhy?: boolean }) {
       )}
       <p className="finding-fix"><strong>What to do:</strong> {f.recommendation}</p>
       {f.maxPoints > 0 && (
-        <p className="finding-points">{f.points} / {f.maxPoints} points · <SeverityTag severity={f.severity} /></p>
+        <p className="finding-points">{f.points} / {f.maxPoints} points · <SeverityTag severity={f.severity} />{isPremium && (<> · <ActionLabel finding={f} /></>)}</p>
       )}
       {f.maxPoints === 0 && (
-        <p className="finding-points"><SeverityTag severity={f.severity} /></p>
+        <p className="finding-points"><SeverityTag severity={f.severity} />{isPremium && (<> · <ActionLabel finding={f} /></>)}</p>
       )}
     </article>
   )

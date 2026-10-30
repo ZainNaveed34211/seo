@@ -6,8 +6,9 @@ export default function AuditView(props: {
   groups: Category[]
   filter: string | null
   onClearFilter: () => void
+  isPremium: boolean
 }) {
-  const { groups, filter, onClearFilter } = props
+  const { groups, filter, onClearFilter, isPremium } = props
   const shown = filter ? groups.filter((g) => g.id === filter) : groups
   return (
     <div>
@@ -24,7 +25,7 @@ export default function AuditView(props: {
             <h3>{g.label} <span className="muted small">— {s.earned}/{s.max} points</span></h3>
             <div className="findings-list">
               {g.findings.map((f) => (
-                <FindingCard key={f.id} finding={f} />
+                <FindingCard key={f.id} finding={f} isPremium={isPremium} />
               ))}
             </div>
           </section>

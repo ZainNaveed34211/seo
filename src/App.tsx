@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { Header, ScoreRing } from './components/components'
 import { runAudit, runLaunchChecks, downloadJson, downloadHtmlReport } from './lib/api'
 import { normalizeUrl } from './lib/url'
-import { Header, ScoreRing } from './components/components'
 import PremiumUpsell from './components/PremiumUpsell'
 import { checkAccountStatus, ACCOUNT_LOGIN_URL, PREMIUM_RETURN_URL } from './lib/account'
 import type { AuditResponse, LaunchChecks } from './lib/types'
@@ -214,17 +213,17 @@ export default function App() {
         </section>
 
         {report && (
-          <section id="results" className="results">
+          <section id="results" className={isPremium ? 'results premium-report' : 'results'}>
             <div className="results-head">
               <div>
-                <h2>Results for {report.finalUrl}</h2>
+                <h2>Results for {report.finalUrl}{isPremium && (<span className="premium-badge">Premium</span>)}</h2>
                 <p className="muted">
                   Checked {report.fetchedAt} · HTTP {report.status}
                   {report.redirectChain.length > 1 ? ` · ${report.redirectChain.length - 1} redirect(s)` : ''}
                 </p>
               </div>
               <div className="report-actions">
-                <button type="button" className="btn-secondary" onClick={() => { try { downloadJson(report) } catch { setError('Report download failed. Please try again.') } }}>Download JSON</button>
+                <button type="button" className="btn-secondary" onClick={() => { try { downloadJson(isPremium ? Object.assign({}, report, { plan: planLabel }) : report) } catch { setError('Report download failed. Please try again.') } }}>Download JSON</button>
                 <button type="button" className="btn-secondary" onClick={() => { try { downloadHtmlReport(report) } catch { setError('Report download failed. Please try again.') } }}>Download free report</button>
               </div>
             </div>
@@ -245,6 +244,11 @@ export default function App() {
 
             {tab === 'overview' && (
               <>
+              {isPremium && (
+                <div className="premium-strip" role="note">
+                  <strong>Premium</strong><span> · {planLabel} plan</span>
+                </div>
+              )}
               <div className="overview-grid">
                 <div className="card score-card">
                   <ScoreRing pct={scorePct(report)} label={report.score.grade} />
@@ -327,9 +331,9 @@ export default function App() {
 
             <Suspense fallback={<p className="muted">Loading…</p>}>
               {tab === 'audit' && (
-                <AuditView groups={groups} filter={auditFilter} onClearFilter={() => setAuditFilter(null)} />
+                <AuditView groups={groups} filter={auditFilter} onClearFilter={() => setAuditFilter(null)} isPremium={isPremium} />
               )}
-              {tab === 'checklist' && <ChecklistView issues={issues} />}
+              {tab === 'checklist' && <ChecklistView issues={issues} isPremium={isPremium} />}
               {tab === 'preview' && preview && <PreviewView report={report} preview={preview} />}
               {tab === 'launch' && (
                 <LaunchView
@@ -350,6 +354,11 @@ export default function App() {
         {!report && !loading && (
           <section className="tools-intro">
             <h2>Five tools, one report</h2>
+            {isPremium && (
+              <div className="premium-strip" role="note">
+                <strong>Premium</strong><span> · {planLabel} plan</span>
+              </div>
+            )}
             <div className="tools-grid">
               <div className="card"><h3>Basic SEO Audit</h3><p>Title, description, headings, images, links, canonical, indexing, sitemap, technical basics, and social tags — scored, with clear findings.</p></div>
               <div className="card"><h3>Action Checklist</h3><p>Every issue turned into a task: what to fix, why it matters, and how.</p></div>
