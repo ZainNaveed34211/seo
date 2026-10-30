@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kluzar SEO mark">
-  <rect width="64" height="64" rx="14" fill="#141272"/>
-  <path d="M18 44 L30 32 L18 20 L26 20 L38 32 L26 44 Z" fill="#ffffff"/>
-  <path d="M38 20 L48 20 L36 32 L48 44 L40 44 L30 34 Z" fill="#7c5cff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="26" fill="#ffffff"/>
+  <rect x="14" y="16" width="92" height="18" rx="9" fill="#141272"/>
+  <rect x="14" y="86" width="92" height="18" rx="9" fill="#141272"/>
+  <path d="M24 96 L88 24" stroke="#7c5cff" stroke-width="16" stroke-linecap="round"/>
+  <path d="M88 24 L88 50 L62 34 Z" fill="#db2777"/>
 </svg>

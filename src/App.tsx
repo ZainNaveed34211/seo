@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Header, ScoreRing, FindingCard } from './components/components'
-import { runAudit, runLaunchChecks, downloadJson, downloadHtmlReport, WORKER_URL } from './lib/api'
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
+import { Header, ScoreRing } from './components/components'
+import { runAudit, runLaunchChecks, downloadJson, downloadHtmlReport } from './lib/api'
 import { normalizeUrl } from './lib/url'
 import { checkAccountStatus, PREMIUM_URL } from './lib/account'
 import type { AuditResponse, LaunchChecks } from './lib/types'
@@ -9,12 +9,16 @@ import {
   categoryScore,
   scorePct,
   severityRank,
-  findById,
   previewData,
-  launchItems,
-  MANUAL_LAUNCH_ITEMS,
-  qualityItems,
 } from './lib/derive'
+
+// Non-critical report sections load on demand only — the first load ships
+// the scan form, the overview, and shared UI, nothing more.
+const AuditView = lazy(() => import('./tools/AuditView'))
+const ChecklistView = lazy(() => import('./tools/ChecklistView'))
+const PreviewView = lazy(() => import('./tools/PreviewView'))
+const LaunchView = lazy(() => import('./tools/LaunchView'))
+const QualityView = lazy(() => import('./tools/QualityView'))
 
 type Tab = 'overview' | 'audit' | 'checklist' | 'preview' | 'launch' | 'quality'
 
@@ -47,6 +51,8 @@ export default function App() {
   const [launchLoading, setLaunchLoading] = useState(false)
   const [launchError, setLaunchError] = useState('')
   const [manualDone, setManualDone] = useState<Set<number>>(new Set())
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -59,6 +65,49 @@ export default function App() {
       setPlanDetail(s.detail)
     })
   }, [])
+
+  // Service worker: production HTTPS only. A new version never silently
+  // replaces the running app — it waits until the user taps Refresh.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !window.isSecureContext || !import.meta.env.PROD) return
+    let cancelled = false
+    let refreshing = false
+    const onControllerChange = () => {
+      if (!refreshing) {
+        refreshing = true
+        window.location.reload()
+      }
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      if (cancelled) return
+      if (reg.waiting) {
+        setWaitingWorker(reg.waiting)
+        setUpdateAvailable(true)
+      }
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing
+        if (!worker) return
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            setWaitingWorker(worker)
+            setUpdateAvailable(true)
+          }
+        })
+      })
+    }).catch(() => {
+      // Offline-first is an enhancement: the app works without it.
+    })
+    return () => {
+      cancelled = true
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+    }
+  }, [])
+
+  function applyUpdate() {
+    if (!waitingWorker) return
+    waitingWorker.postMessage({ type: 'SKIP_WAITING' })
+  }
 
   const groups = useMemo(() => (report ? groupFindings(report) : []), [report])
   const issues = useMemo(
@@ -73,10 +122,6 @@ export default function App() {
     const norm = normalizeUrl(urlInput)
     if (!norm.ok) {
       setError(norm.error)
-      return
-    }
-    if (!WORKER_URL) {
-      setError('The analysis service is not configured in this build, so a live scan cannot run. No sample or fake report is shown instead.')
       return
     }
     setLoading(true)
@@ -118,12 +163,18 @@ export default function App() {
   }
 
   const preview = report ? previewData(report) : null
-  const launchList = report ? launchItems(report, launch) : []
-  const qualityList = report ? qualityItems(report) : []
 
   return (
     <div className="page">
       <Header theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} planLabel={planLabel} />
+
+      {updateAvailable && (
+        <div className="update-banner" role="status">
+          <span>A new version of Kluzar SEO is available.</span>
+          <button type="button" className="btn-primary" onClick={applyUpdate}>Refresh</button>
+          <button type="button" className="btn-secondary" onClick={() => setUpdateAvailable(false)}>Later</button>
+        </div>
+      )}
 
       <main className="main">
         <section className="hero">
@@ -260,160 +311,25 @@ export default function App() {
               </div>
             )}
 
-            {tab === 'audit' && (
-              <div>
-                {auditFilter && (
-                  <p>
-                    Showing <strong>{groups.find((g) => g.id === auditFilter)?.label}</strong>{' '}
-                    <button type="button" className="link-btn" onClick={() => setAuditFilter(null)}>Show all categories</button>
-                  </p>
-                )}
-                {(auditFilter ? groups.filter((g) => g.id === auditFilter) : groups).map((g) => {
-                  const s = categoryScore(g.findings)
-                  return (
-                    <section key={g.id} className="category-section">
-                      <h3>{g.label} <span className="muted small">— {s.earned}/{s.max} points</span></h3>
-                      <div className="findings-list">
-                        {g.findings.map((f) => (
-                          <FindingCard key={f.id} finding={f} />
-                        ))}
-                      </div>
-                    </section>
-                  )
-                })}
-              </div>
-            )}
-
-            {tab === 'checklist' && (
-              <div>
-                <p className="muted">
-                  Every issue below explains what needs improvement, why it matters, and what to do.
-                  {issues.length > 0 && ` ${issues.length} task(s) in total.`}
-                </p>
-                {issues.length === 0 ? (
-                  <p>No action items — everything checked passed.</p>
-                ) : (
-                  <div className="findings-list">
-                    {issues.map((f) => (
-                      <FindingCard key={f.id} finding={f} showWhy />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {tab === 'preview' && preview && (
-              <div>
-                <p className="muted">
-                  Previews use the real title, description, and Open Graph values found on the page.
-                  A missing value is shown as missing — nothing is invented.
-                </p>
-                <div className="preview-grid">
-                  <article className="card preview-card">
-                    <h3>Google Search</h3>
-                    <p className="google-url">{preview.url}</p>
-                    <p className="google-title">{preview.title ?? 'Missing page title'}</p>
-                    <p className="google-desc">{preview.description ?? 'No meta description found — Google would use page text instead.'}</p>
-                  </article>
-                  <article className="card preview-card">
-                    <h3>Facebook</h3>
-                    <p className="fb-title">{preview.ogTitle ?? preview.title ?? 'Missing sharing title'}</p>
-                    <p className="muted small">{preview.url}</p>
-                    <p>{preview.ogDescription ?? preview.description ?? 'No sharing description found.'}</p>
-                    {!preview.ogTitle && <p className="warn">og:title is missing — Facebook would fall back to the page title.</p>}
-                    {!preview.ogDescription && <p className="warn">og:description is missing — Facebook would fall back to the meta description or page text.</p>}
-                  </article>
-                  <article className="card preview-card">
-                    <h3>X (Twitter) card</h3>
-                    <p className="fb-title">{preview.ogTitle ?? preview.title ?? 'Missing card title'}</p>
-                    <p>{preview.ogDescription ?? preview.description ?? 'No card description found.'}</p>
-                    <p className="muted small">X summary cards use Open Graph values when present, otherwise the page title and description.</p>
-                  </article>
-                </div>
-                <div className="card">
-                  <h3>Metadata recommendations</h3>
-                  <ul className="plain-list">
-                    {(['title-present', 'description-present', 'open-graph'] as const).map((id) => {
-                      const f = findById(report, id)
-                      if (!f) return null
-                      return <li key={id}><strong>{f.title}:</strong> {f.recommendation}</li>
-                    })}
-                    {preview.canonical && <li><strong>Canonical:</strong> {preview.canonical}</li>}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {tab === 'launch' && (
-              <div>
-                {!launch ? (
-                  <div className="card">
-                    <p>Launch checks fetch the site&apos;s robots.txt and sitemap in addition to the audit.</p>
-                    <button type="button" className="btn-primary" onClick={handleLaunch} disabled={launchLoading}>
-                      {launchLoading ? 'Checking…' : 'Run launch checks'}
-                    </button>
-                    {launchError && <p className="form-error" role="alert">{launchError}</p>}
-                  </div>
-                ) : (
-                  <div className="card">
-                    <h3>Automatic checks</h3>
-                    <ul className="plain-list">
-                      {launchList.map((item) => (
-                        <li key={item.label}>
-                          <strong>{item.label}:</strong> {item.detail}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="muted small">{launch.note}</p>
-                  </div>
-                )}
-                <div className="card">
-                  <h3>Manual checks — verify these yourself before launch</h3>
-                  <ul className="check-list">
-                    {MANUAL_LAUNCH_ITEMS.map((item, i) => (
-                      <li key={item}>
-                        <label>
-                          <input type="checkbox" checked={manualDone.has(i)} onChange={() => toggleManual(i)} />
-                          {item}
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="muted small">{manualDone.size} of {MANUAL_LAUNCH_ITEMS.length} manual checks ticked. These are stored only in this browser.</p>
-                </div>
-              </div>
-            )}
-
-            {tab === 'quality' && (
-              <div>
-                <p className="muted">
-                  Quality here is derived from the same scan — accessibility basics, mobile readiness,
-                  connection security, and the bounded broken-link check. This scan does not measure
-                  load speed, so no speed score is claimed.
-                </p>
-                <div className="findings-list">
-                  {qualityList.map((q) => (
-                    <article key={q.label} className="finding-card">
-                      <div className="finding-head">
-                        <h3>{q.label}</h3>
-                        <span className={`status-dot status-${q.state === 'pass' ? 'pass' : q.state === 'attention' ? 'attention' : 'not_checked'}`}>
-                          {q.state === 'pass' ? 'Good' : q.state === 'attention' ? 'Needs work' : 'Not checked'}
-                        </span>
-                      </div>
-                      <p className="finding-text">{q.detail}</p>
-                    </article>
-                  ))}
-                </div>
-                <div className="card">
-                  <h3>Full multi-page quality scan</h3>
-                  <p>
-                    A full scan of every page on a site is a Premium feature and is not available yet.
-                    The free scan checks one page and a bounded number of its links.
-                  </p>
-                  <a href={PREMIUM_URL} target="_blank" rel="noreferrer" className="btn-primary">Get Premium</a>
-                </div>
-              </div>
-            )}
+            <Suspense fallback={<p className="muted">Loading…</p>}>
+              {tab === 'audit' && (
+                <AuditView groups={groups} filter={auditFilter} onClearFilter={() => setAuditFilter(null)} />
+              )}
+              {tab === 'checklist' && <ChecklistView issues={issues} />}
+              {tab === 'preview' && preview && <PreviewView report={report} preview={preview} />}
+              {tab === 'launch' && (
+                <LaunchView
+                  report={report}
+                  launch={launch}
+                  launchLoading={launchLoading}
+                  launchError={launchError}
+                  onRunLaunch={handleLaunch}
+                  manualDone={manualDone}
+                  onToggleManual={toggleManual}
+                />
+              )}
+              {tab === 'quality' && <QualityView report={report} />}
+            </Suspense>
           </section>
         )}
 

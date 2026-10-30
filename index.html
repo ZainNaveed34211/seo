@@ -2,10 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- Content Security Policy for the resources this page actually uses.
+         GitHub Pages cannot send response headers, so this meta policy is
+         used instead. It cannot set frame-ancestors or HSTS — those belong
+         in Cloudflare (see the deployment notes). 'unsafe-inline' stays
+         only because the user-ordered AdSense snippet and its ads need it;
+         no other inline script is used by this app. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://*.doubleclick.net; connect-src 'self' https://seo-api.kluzar.com https://www.google-analytics.com https://*.google-analytics.com; frame-src https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com https://*.googlesyndication.com; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kluzar SEO — Analyze your website</title>
     <meta name="description" content="Free basic SEO audit, action checklist, search and social preview, launch checklist, and quality checklist for any public website." />
+    <link rel="canonical" href="https://seo.kluzar.com/" />
+    <meta name="theme-color" content="#141272" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta property="og:title" content="Kluzar SEO — Analyze your website" />
     <meta property="og:description" content="Enter a URL and get a clear, honest SEO report. No invented rankings or traffic." />
     <meta property="og:type" content="website" />
@@ -13,6 +24,7 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Kluzar SEO — Analyze your website" />
     <meta name="twitter:description" content="Free basic SEO audit, action checklist, search and social preview, launch checklist, and quality checklist." />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Kluzar SEO","url":"https://seo.kluzar.com/","description":"Free basic SEO audit, action checklist, search and social preview, launch checklist, and quality checklist for any public website.","applicationCategory":"BusinessApplication","operatingSystem":"Web"}</script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-T30S2TK79K"></script>
     <script>
@@ -24,10 +36,9 @@
     </script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3050978093233454"
      crossorigin="anonymous"></script>
-    <script type="module" crossorigin src="/assets/index-yXvzEjKR.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D2w8ORM4.css">
   </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

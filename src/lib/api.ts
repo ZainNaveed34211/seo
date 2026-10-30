@@ -4,11 +4,15 @@ import type { AuditResponse, ApiError, LaunchChecks } from './types'
 // Production: VITE_WORKER_URL = https://seo-api.kluzar.com (custom domain
 // on the Cloudflare Worker named kluzar-seo-audit — never rename it).
 // Local dev: leave empty, the Vite proxy forwards /api to localhost:8787.
-// If it is empty in production, the app does NOT fake an audit.
-export const WORKER_URL = ((import.meta.env.VITE_WORKER_URL as string | undefined)?.replace(/\/$/, '')) ?? ''
+// Fallback: an empty/unset build variable uses the documented canonical
+// public Worker URL instead of a relative /api path — a relative path
+// POSTs to GitHub Pages itself, which rejects POST with HTTP 405 and can
+// never run a scan. An explicitly set VITE_WORKER_URL always wins.
+const WORKER_ENV = (import.meta.env.VITE_WORKER_URL as string | undefined)?.trim().replace(/\/$/, '')
+export const WORKER_URL = WORKER_ENV ? WORKER_ENV : 'https://seo-api.kluzar.com'
 
 export function apiBase(): string {
-  return WORKER_URL ? `${WORKER_URL}/api` : '/api'
+  return `${WORKER_URL}/api`
 }
 
 async function fetchJson(path: string, body: unknown, timeoutMs = 45000): Promise<Response> {
@@ -39,7 +43,13 @@ export async function runAudit(url: string): Promise<AuditResponse> {
     const code = (data as ApiError | null)?.code ?? 'AUDIT_FAILED'
     throw new Error(`${err} [${code}]`)
   }
-  return data as AuditResponse
+  // Validate the shape before anything is rendered: React escapes text by
+  // default, but a malformed payload must never reach the UI as a report.
+  const r = data as AuditResponse
+  if (!Array.isArray(r.findings) || !r.score || typeof r.score.total !== 'number' || typeof r.score.max !== 'number' || typeof r.finalUrl !== 'string') {
+    throw new Error('Unexpected response from the analysis service. [BAD_RESPONSE]')
+  }
+  return r
 }
 
 export async function runLaunchChecks(url: string): Promise<LaunchChecks> {

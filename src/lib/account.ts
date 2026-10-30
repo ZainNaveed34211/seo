@@ -9,12 +9,24 @@
 //     no prices are shown here.)
 // If VITE_AUTH_SESSION_URL is ever set, it must point at a real session
 // endpoint returning { authenticated: boolean, plan?: string }.
-export const LOGIN_URL = ((import.meta.env.VITE_LOGIN_URL as string | undefined)
-  ?? (import.meta.env.VITE_AUTH_URL as string | undefined)
-  ?? 'https://accounts.kluzar.com').replace(/\/$/, '')
-export const PREMIUM_URL = ((import.meta.env.VITE_PREMIUM_URL as string | undefined)
-  ?? 'https://payments.kluzar.com').replace(/\/$/, '')
-export const SESSION_URL = ((import.meta.env.VITE_AUTH_SESSION_URL as string | undefined) ?? '').replace(/\/$/, '')
+// Build-time values: an explicitly set variable wins, but an EMPTY value
+// (what GitHub Actions passes for an unset repository variable) counts as
+// unset — otherwise a link silently becomes href="" and looks dead.
+function envVal(v: string | undefined): string {
+  return v && v.trim() ? v.trim().replace(/\/$/, '') : ''
+}
+export const LOGIN_URL = envVal(import.meta.env.VITE_LOGIN_URL as string | undefined)
+  || envVal(import.meta.env.VITE_AUTH_URL as string | undefined)
+  || 'https://accounts.kluzar.com'
+export const PREMIUM_URL = envVal(import.meta.env.VITE_PREMIUM_URL as string | undefined)
+  || 'https://payments.kluzar.com'
+export const SESSION_URL = envVal(import.meta.env.VITE_AUTH_SESSION_URL as string | undefined)
+
+// Account entry point for first-time users: sign in / sign up, then come
+// back to this SEO subdomain. The accounts app honours ?next= only for
+// https Kluzar subdomains (never accounts itself, never another host),
+// so an unknown or invalid value simply lands on the accounts dashboard.
+export const ACCOUNT_LOGIN_URL = `${LOGIN_URL}/login/?next=${encodeURIComponent('https://seo.kluzar.com/')}`
 
 export interface AccountState {
   authenticated: boolean
