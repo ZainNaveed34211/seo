@@ -17,6 +17,7 @@ export function Header(props: {
         <nav className="header-nav" aria-label="Main">
           <a href="#" onClick={(e) => e.preventDefault()} className="nav-link active">Home</a>
           <a href={PREMIUM_RETURN_URL} className="nav-link">Get Premium</a>
+          <a href="https://support.kluzar.com/" className="nav-link">Support</a>
         </nav>
         <div className="header-actions">
           <span className="plan-pill" title="Your current plan">{planLabel}</span>

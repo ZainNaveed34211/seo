@@ -367,16 +367,6 @@ export default function App() {
             <p className="muted">Free analysis of any public website — title, description, headings, links, images, and technical basics. No account needed for a basic scan.</p>
             <p><a href={PREMIUM_RETURN_URL} className="footer-main-link">Get Premium to unlock full potential</a></p>
           </div>
-          <nav className="footer-col" aria-label="SEO tools">
-            <h3>Tools</h3>
-            <ul>
-              <li><a href="#audit" onClick={() => setTab('audit')}>Basic SEO Audit</a></li>
-              <li><a href="#checklist" onClick={() => setTab('checklist')}>Action Checklist</a></li>
-              <li><a href="#preview" onClick={() => setTab('preview')}>Search &amp; Social Preview</a></li>
-              <li><a href="#launch" onClick={() => setTab('launch')}>Launch Checklist</a></li>
-              <li><a href="#quality" onClick={() => setTab('quality')}>Quality Check</a></li>
-            </ul>
-          </nav>
           <nav className="footer-col" aria-label="Kluzar">
             <h3>Kluzar</h3>
             <ul>
@@ -389,8 +379,8 @@ export default function App() {
           <nav className="footer-col" aria-label="Support and legal">
             <h3>Support &amp; legal</h3>
             <ul>
+              <li><a href="https://support.kluzar.com/">Support</a></li>
               <li><a href="mailto:info@kluzar.com">info@kluzar.com</a></li>
-              <li><a href="mailto:support@kluzar.com">support@kluzar.com</a></li>
               <li><a href="https://kluzar.com/terms/">Terms of Service</a></li>
               <li><a href="https://kluzar.com/privacy/">Privacy Policy</a></li>
               <li><a href="https://kluzar.com/refund/">Refund Policy</a></li>

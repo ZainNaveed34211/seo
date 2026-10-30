@@ -136,7 +136,7 @@ export function downloadHtmlReport(report: AuditResponse) {
 <p><strong>Page:</strong> ${escapeHtml(report.finalUrl)}<br/><strong>Score:</strong> ${report.score.total}/${report.score.max} — ${escapeHtml(report.score.grade)}<br/><strong>Date:</strong> ${escapeHtml(report.fetchedAt)}</p>
 <p>This is a free page-level audit. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.</p>
 <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr><th>Finding</th><th>Status</th><th>Severity</th><th>Points</th><th>Next step</th></tr></thead><tbody>${rows}</tbody></table>
-<p>Contact: info@kluzar.com · support@kluzar.com · Serving Worldwide</p></body></html>`
+<p>Contact: info@kluzar.com · Serving Worldwide</p></body></html>`
   const blob = new Blob([html], { type: 'text/html' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
