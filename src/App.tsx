@@ -1,414 +1,443 @@
-import { useEffect, useRef, useState } from 'react'
-import { WORKER_URL, checkPremium, runAudit, runLaunchChecks } from './api'
-import { LOGO_DARK_URL, LOGO_URL } from './logoData'
-import { normalizeUrl } from './url'
-import { SAMPLE_REPORT } from './sampleReport'
-import { LOGIN_URL, SESSION_URL, checkAccountStatus, type AccountState } from './account'
-import { PREMIUM_DESTINATION_URL } from './limits'
-import type { AuditResponse, LaunchChecks } from './types'
-import AuditSection from './tools/AuditSection'
-import { ActionChecklist, GoPremium, LaunchChecklist, QualityTool } from './tools/Checklists'
-import PreviewTool from './tools/PreviewTool'
+import { useEffect, useMemo, useState } from 'react'
+import { Header, ScoreRing, FindingCard } from './components/components'
+import { runAudit, runLaunchChecks, downloadJson, downloadHtmlReport, WORKER_URL } from './lib/api'
+import { normalizeUrl } from './lib/url'
+import { checkAccountStatus, PREMIUM_URL } from './lib/account'
+import type { AuditResponse, LaunchChecks } from './lib/types'
+import {
+  groupFindings,
+  categoryScore,
+  scorePct,
+  severityRank,
+  findById,
+  previewData,
+  launchItems,
+  MANUAL_LAUNCH_ITEMS,
+  qualityItems,
+} from './lib/derive'
 
-type Phase = 'idle' | 'validating' | 'fetching' | 'launch' | 'done' | 'error'
+type Tab = 'overview' | 'audit' | 'checklist' | 'preview' | 'launch' | 'quality'
 
-function getInitialTheme(): 'light' | 'dark' {
-  try {
-    const saved = localStorage.getItem('kluzar-seo-theme')
-    if (saved === 'light' || saved === 'dark') return saved
-  } catch { /* ignore */ }
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'audit', label: 'SEO Audit' },
+  { id: 'checklist', label: 'Action Checklist' },
+  { id: 'preview', label: 'Search & Social Preview' },
+  { id: 'launch', label: 'Launch Checklist' },
+  { id: 'quality', label: 'Quality Check' },
+]
+
+function initialTheme(): 'light' | 'dark' {
+  const stored = localStorage.getItem('kluzar-seo-theme')
+  if (stored === 'light' || stored === 'dark') return stored
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 export default function App() {
-  const [rawInput, setRawInput] = useState('')
-  const [submittedRaw, setSubmittedRaw] = useState('')
-  const [normalized, setNormalized] = useState('')
-  const [phase, setPhase] = useState<Phase>('idle')
-  const [phaseNote, setPhaseNote] = useState('')
+  const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
+  const [planLabel, setPlanLabel] = useState('Free')
+  const [planDetail, setPlanDetail] = useState('Starter (Free) — no account needed for a basic scan.')
+  const [urlInput, setUrlInput] = useState('')
   const [report, setReport] = useState<AuditResponse | null>(null)
-  const [launchChecks, setLaunchChecks] = useState<LaunchChecks | null>(null)
-  const [launchError, setLaunchError] = useState('')
+  const [launch, setLaunch] = useState<LaunchChecks | null>(null)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme)
-  const [premiumMsg, setPremiumMsg] = useState('')
-  const [checkingPremium, setCheckingPremium] = useState(false)
-  const [account, setAccount] = useState<AccountState | null>(null)
-  const [loginMsg, setLoginMsg] = useState('')
-  const [displayedScore, setDisplayedScore] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<Tab>('overview')
+  const [auditFilter, setAuditFilter] = useState<string | null>(null)
+  const [launchLoading, setLaunchLoading] = useState(false)
+  const [launchError, setLaunchError] = useState('')
+  const [manualDone, setManualDone] = useState<Set<number>>(new Set())
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem('kluzar-seo-theme', theme) } catch { /* ignore */ }
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('kluzar-seo-theme', theme)
   }, [theme])
 
-  // Account status on load: no integration -> Starter immediately, no fake
-  // loading. Integration configured -> loading state, then backend result,
-  // failing safe to Starter (never paid) on any failure. See src/account.ts.
   useEffect(() => {
-    if (SESSION_URL) setAccount({ kind: 'loading', authenticated: false, premium: false, detail: 'Checking account status…' })
-    checkAccountStatus(checkPremium).then(setAccount).catch(() =>
-      setAccount({ kind: 'unverified', authenticated: false, premium: false, detail: 'Account status could not be verified. Only Starter features are available.' }),
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    checkAccountStatus().then((s) => {
+      setPlanLabel(s.planLabel)
+      setPlanDetail(s.detail)
+    })
   }, [])
 
-  // Animated score, only when results are ready. Reduced motion -> instant.
-  useEffect(() => {
-    if (!report) { setDisplayedScore(0); return }
-    const target = report.score.total
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setDisplayedScore(target); return }
-    let raf = 0
-    const start = performance.now()
-    const step = (now: number) => {
-      const progress = Math.min(1, (now - start) / 800)
-      setDisplayedScore(Math.round(target * (1 - Math.pow(1 - progress, 3))))
-      if (progress < 1) raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [report])
+  const groups = useMemo(() => (report ? groupFindings(report) : []), [report])
+  const issues = useMemo(
+    () => (report ? [...report.findings].filter((f) => f.status === 'attention').sort((a, b) => severityRank(a) - severityRank(b)) : []),
+    [report],
+  )
+  const positives = useMemo(() => (report ? report.findings.filter((f) => f.status === 'pass') : []), [report])
 
-  const busy = phase === 'validating' || phase === 'fetching' || phase === 'launch'
-
-  async function onAnalyze(e: React.FormEvent) {
+  async function handleScan(e: React.FormEvent) {
     e.preventDefault()
-    if (busy) return
     setError('')
-    setLaunchError('')
-    setPremiumMsg('')
-    const result = normalizeUrl(rawInput)
-    if (!result.ok) {
-      setError(result.error)
-      setPhase('error')
+    const norm = normalizeUrl(urlInput)
+    if (!norm.ok) {
+      setError(norm.error)
       return
     }
     if (!WORKER_URL) {
-      setError('Live analysis is not available right now. Please see the example report below, or try again later.')
-      setPhase('error')
+      setError('The analysis service is not configured in this build, so a live scan cannot run. No sample or fake report is shown instead.')
       return
     }
-    setSubmittedRaw(rawInput.trim())
-    setNormalized(result.url)
-    setPhase('validating')
-    setPhaseNote('Validating the URL…')
+    setLoading(true)
+    setLaunch(null)
     try {
-      setPhase('fetching')
-      setPhaseNote('Fetching the page safely and analyzing it…')
-      const audit = await runAudit(result.url)
-      setReport(audit)
-      // Launch checks reuse the same analyzed origin; a failure here must
-      // not destroy the audit report — it is shown honestly as unchecked.
-      setPhase('launch')
-      setPhaseNote('Checking robots.txt and sitemap for the same site…')
-      try {
-        setLaunchChecks(await runLaunchChecks(result.url))
-        setLaunchError('')
-      } catch (launchErr) {
-        setLaunchChecks(null)
-        setLaunchError(launchErr instanceof Error ? launchErr.message : 'Robots/sitemap check failed.')
-      }
-      setPhase('done')
+      const res = await runAudit(norm.url)
+      setReport(res)
+      setTab('overview')
+      setAuditFilter(null)
+      document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed.')
-      setPhase('error')
-    }
-  }
-
-  function onSample() {
-    setError('')
-    setLaunchError('')
-    setReport(SAMPLE_REPORT)
-    setLaunchChecks(null)
-    setLaunchError('Example report — robots.txt and sitemap were not checked live for this example.')
-    setNormalized(SAMPLE_REPORT.finalUrl)
-    setSubmittedRaw(SAMPLE_REPORT.finalUrl)
-    setPhase('done')
-  }
-
-  async function onPremium() {
-    setCheckingPremium(true)
-    setPremiumMsg('')
-    try {
-      const result = await checkPremium()
-      setPremiumMsg(result.available
-        ? 'Premium is available.'
-        : `${result.reason} No checkout, no charge, and no premium access is granted here.`)
-    } catch (err) {
-      setPremiumMsg(err instanceof Error ? err.message : 'Premium check failed.')
+      setError(err instanceof Error ? err.message : 'Audit failed. Try again.')
     } finally {
-      setCheckingPremium(false)
+      setLoading(false)
     }
   }
 
-  function analyzeAnother() {
-    document.getElementById('analyze')?.scrollIntoView({ behavior: 'smooth' })
-    inputRef.current?.focus()
+  async function handleLaunch() {
+    if (!report) return
+    setLaunchError('')
+    setLaunchLoading(true)
+    try {
+      const res = await runLaunchChecks(report.auditedUrl)
+      setLaunch(res)
+    } catch (err) {
+      setLaunchError(err instanceof Error ? err.message : 'Launch check failed. Try again.')
+    } finally {
+      setLaunchLoading(false)
+    }
   }
 
-  const attentionSorted = report
-    ? [...report.findings].filter((f) => f.status === 'attention').sort((a, b) => {
-        const order: Record<string, number> = { high: 0, medium: 1, low: 2, info: 3 }
-        return order[a.severity] - order[b.severity]
-      })
-    : []
+  function toggleManual(i: number) {
+    setManualDone((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
+
+  const preview = report ? previewData(report) : null
+  const launchList = report ? launchItems(report, launch) : []
+  const qualityList = report ? qualityItems(report) : []
 
   return (
-    <div className="app-shell">
-      <header className="header">
-        <div className="header-inner">
-          <a className="brand" href="https://seo.kluzar.com/" aria-label="Kluzar SEO home">
-            <img src={theme === 'dark' ? LOGO_DARK_URL : LOGO_URL} alt="Kluzar" className="brand-logo" />
-            <span className="brand-sub">SEO</span>
-          </a>
-          <div className="header-actions">
-            {account && account.kind !== 'starter' && (
-              <span className="account-badge" role="status">
-                {account.kind === 'loading' ? 'Checking account…' : account.kind === 'premium' ? 'Premium' : account.kind === 'authenticated-starter' ? 'Signed in · Starter' : 'Account unverified · Starter only'}
-              </span>
-            )}
-            {account && account.kind === 'starter' && <span className="account-badge">Starter · Free</span>}
-            <a className="get-premium-btn" href={PREMIUM_DESTINATION_URL}>Get Premium</a>
-            {LOGIN_URL ? (
-              <a className="login-btn" href={LOGIN_URL}>Login →</a>
-            ) : (
-              <button type="button" className="login-btn" onClick={() => setLoginMsg('Login is not available yet. You can use all Starter features without logging in.')}>Login →</button>
-            )}
-            <button type="button" className="theme-toggle" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}>
-              {theme === 'dark' ? '☀ Light' : '☾ Dark'}
-            </button>
-          </div>
-        </div>
-      </header>
-      {loginMsg && <p className="login-msg" role="status">{loginMsg}</p>}
+    <div className="page">
+      <Header theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} planLabel={planLabel} />
 
-      <main className="unified">
-        <section id="analyze" className="analyzer">
-          <h1>Analyze your website.</h1>
-          <p className="hero-copy">
-            A clear SEO report for your website — what is working, what needs fixing,
-            and what to do first.
+      <main className="main">
+        <section className="hero">
+          <h1>Check your website&apos;s SEO</h1>
+          <p className="hero-sub">
+            Enter a public website address and get a clear report: score, issues, fixes, and
+            previews — free, with no account needed for a basic scan.
           </p>
-
-          <form className="audit-form" onSubmit={onAnalyze}>
-            <label htmlFor="url-input">Website URL to analyze</label>
-            <div className="form-row">
-              <input
-                ref={inputRef}
-                id="url-input"
-                type="text"
-                inputMode="url"
-                placeholder="example.com or https://example.com/about"
-                value={rawInput}
-                onChange={(e) => setRawInput(e.target.value)}
-                autoComplete="off"
-              />
-              <button type="submit" disabled={busy}>
-                {busy ? 'Analyzing…' : 'Analyze Website →'}
-              </button>
-            </div>
-          </form>
-
-          {busy && (
-            <div>
-              <div className="stage-indicator" aria-label="Analysis stages">
-                {(['Validate URL', 'Fetch & analyze page', 'Check robots & sitemap'] as const).map((label, i) => {
-                  const activeIndex = phase === 'validating' ? 0 : phase === 'fetching' ? 1 : 2
-                  const state = i < activeIndex ? 'done' : i === activeIndex ? 'active' : 'pending'
-                  return <span key={label} className={`stage stage-${state}`}>{state === 'done' ? '✓ ' : ''}{label}</span>
-                })}
-              </div>
-              <div className="progress" role="status" aria-live="polite">
-                <span className="spinner" aria-hidden="true" />
-                {phaseNote}
-              </div>
-            </div>
-          )}
-          {error && (
-            <div className="error" role="alert">
-              <strong>Could not complete the analysis.</strong> {error}
-            </div>
-          )}
-          {!WORKER_URL && (
-            <div className="notice">
-              Live analysis is being set up. You can see an example report below.
-            </div>
-          )}
-          <div className="hero-actions">
-            <button type="button" className="secondary" onClick={onSample}>
-              See an example report →
+          <form className="scan-form" onSubmit={handleScan}>
+            <label htmlFor="url-input" className="sr-only">Website URL</label>
+            <input
+              id="url-input"
+              type="text"
+              inputMode="url"
+              autoComplete="off"
+              placeholder="example.com or https://example.com/about"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+            />
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? 'Analyzing…' : 'Analyze'}
             </button>
-          </div>
-        </section>
-
-        <section className="features" aria-label="What you get">
-          <h2>What you get from one analysis</h2>
-          <div className="how-it-works">
-            <div className="step"><strong>1. Enter your URL once</strong><span>Just your website address. A plain domain works too.</span></div>
-            <div className="step"><strong>2. We analyze that page</strong><span>Safely, in one pass, without changing your site.</span></div>
-            <div className="step"><strong>3. You get one clear report</strong><span>Five sections, most important fixes first.</span></div>
-          </div>
-          <div className="feature-grid">
-            <article className="feature-card"><h3>Basic SEO Audit <span className="tier free">FREE</span></h3><p>We read your page the way a search engine does: title, description, headings, images, links and technical basics. You see what is good, what needs fixing, and exactly how to fix it.</p></article>
-            <article className="feature-card"><h3>SEO Action Checklist <span className="tier free">FREE</span></h3><p>Your audit turned into a simple to-do list, most important first, with clear steps for each fix. Tick items off as you complete them.</p></article>
-            <article className="feature-card"><h3>Search &amp; Social Preview <span className="tier free">FREE</span></h3><p>See how your page could look in Google search results and when shared on social media. Edit the title and description and check length warnings before you publish.</p></article>
-            <article className="feature-card"><h3>Website Launch Checklist <span className="tier free">FREE</span></h3><p>Before you launch: the essentials that must be ready, including metadata, HTTPS, mobile view, important links, robots.txt and sitemap, plus manual reminders.</p></article>
-            <article className="feature-card"><h3>Website Quality Checklist <span className="tier free">FREE</span></h3><p>A plain-language quality check for the same page: structure, images, links, accessibility signals and technical headers, with honest limits stated on every row.</p></article>
-          </div>
-          <div className="premium-cta">
-            <div><strong>Want more than the free report?</strong><span> Get Premium for deeper scans, premium findings and branded reports.</span></div>
-            <a className="get-premium-btn" href={PREMIUM_DESTINATION_URL}>Get Premium →</a>
-          </div>
+          </form>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <p className="hero-note">{planDetail} One page is checked per scan. Private and local addresses cannot be analyzed.</p>
         </section>
 
         {report && (
-          <div className="report-shell">
-            <nav className="section-nav" aria-label="Report sections">
-              <a href="#section-audit">Audit</a>
-              <a href="#section-action">Action Checklist</a>
-              <a href="#section-preview">Preview</a>
-              <a href="#section-launch">Launch</a>
-              <a href="#section-quality">Quality</a>
-              <a href="#section-premium">Premium</a>
+          <section id="results" className="results">
+            <div className="results-head">
+              <div>
+                <h2>Results for {report.finalUrl}</h2>
+                <p className="muted">
+                  Checked {report.fetchedAt} · HTTP {report.status}
+                  {report.redirectChain.length > 1 ? ` · ${report.redirectChain.length - 1} redirect(s)` : ''}
+                </p>
+              </div>
+              <div className="report-actions">
+                <button type="button" className="btn-secondary" onClick={() => downloadJson(report)}>Download JSON</button>
+                <button type="button" className="btn-secondary" onClick={() => downloadHtmlReport(report)}>Download free report</button>
+              </div>
+            </div>
+
+            <nav className="tabs" aria-label="Report sections">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`tab-btn${tab === t.id ? ' active' : ''}`}
+                  onClick={() => setTab(t.id)}
+                  aria-current={tab === t.id ? 'true' : undefined}
+                >
+                  {t.label}
+                </button>
+              ))}
             </nav>
 
-            <section className="report-header">
-              {report.sample && (
-                <div className="sample-banner">
-                  <strong>Example report — see what a real report looks like.</strong> This example was not produced
-                  by a live analysis of a real website.
-                </div>
-              )}
-              <h2>Report for {new URL(report.finalUrl).hostname}</h2>
-              <p className="report-meta">
-                Page: <code>{report.finalUrl}</code><br />
-                {submittedRaw && submittedRaw !== normalized && <>You entered: <code>{submittedRaw}</code> → normalized to: <code>{normalized}</code><br /></>}
-                {report.auditedUrl !== report.finalUrl && <>Submitted target redirected to the final URL above{report.redirectChain.length > 0 && ' (' + report.redirectChain.map((r) => r.status).join(' → ') + ')'}.<br /></>}
-                Analyzed at: {new Date(report.fetchedAt).toLocaleString()} · HTTP {report.status}
-              </p>
-              <div className="summary">
-                <div className="score-box">
-                  <div className="score-number">{displayedScore}<span>/{report.score.max}</span></div>
-                  <div className="score-grade">{report.score.grade}</div>
-                  <p>{report.score.gradeNote}</p>
-                </div>
-                <div>
-                  <h3>How the score is calculated</h3>
-                  <p>
-                    The score is the sum of 12 scored checks only: title (10 + 5), description (10 + 5),
-                    H1 (15), heading order (5), canonical (10), robots (10), images (10), links (5),
-                    technical basics (10), and Open Graph (5) = 100. Informational findings (HTTPS,
-                    security headers, new-tab links) are 0 points and do not change the score.
-                    Broken-link and launch checks are not scored. This is a Kluzar audit score,
-                    not a Google ranking.
+            {tab === 'overview' && (
+              <div className="overview-grid">
+                <div className="card score-card">
+                  <ScoreRing pct={scorePct(report)} label={report.score.grade} />
+                  <p className="score-note">{report.score.total} / {report.score.max} points</p>
+                  <p className="muted">{report.score.gradeNote}</p>
+                  <p className="muted">
+                    {positives.length} check(s) good · {issues.length} need work ·{' '}
+                    {report.findings.filter((f) => f.status === 'not_checked').length} not checked
                   </p>
-                  <div className="counts">
-                    <span>{report.findings.filter((f) => f.status === 'pass').length} passed</span>
-                    <span>{report.findings.filter((f) => f.status === 'attention').length} need attention</span>
-                    <span>{report.findings.filter((f) => f.status === 'not_checked').length} not checked</span>
-                  </div>
-                  {attentionSorted.length > 0 && (
-                    <div className="prioritized">
-                      <h3>Prioritized summary — fix these first</h3>
-                      <ol>
-                        {attentionSorted.slice(0, 5).map((f) => (
-                          <li key={f.id}><a href="#section-audit">{f.title}</a> ({f.severity} severity) — {f.recommendation}</li>
-                        ))}
-                      </ol>
-                      {attentionSorted.length > 5 && <p>Plus {attentionSorted.length - 5} more issue(s) in the audit section below.</p>}
-                    </div>
+                </div>
+                <div className="card">
+                  <h3>Issues found</h3>
+                  {issues.length === 0 ? (
+                    <p>No issues were found in this scan.</p>
+                  ) : (
+                    <ul className="plain-list">
+                      {issues.slice(0, 8).map((f) => (
+                        <li key={f.id}>
+                          <strong>{f.title}</strong> — {f.explanation}
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  <button type="button" onClick={analyzeAnother}>Analyze another URL →</button>
+                  {issues.length > 8 && <p className="muted">Plus {issues.length - 8} more — see the Action Checklist.</p>}
+                </div>
+                <div className="card">
+                  <h3>What&apos;s working</h3>
+                  {positives.length === 0 ? (
+                    <p>No checks passed in this scan yet.</p>
+                  ) : (
+                    <ul className="plain-list">
+                      {positives.slice(0, 8).map((f) => (
+                        <li key={f.id}><strong>{f.title}</strong></li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="card">
+                  <h3>Top recommendations</h3>
+                  {issues.length === 0 ? (
+                    <p>Nothing urgent — keep the good checks passing.</p>
+                  ) : (
+                    <ol className="plain-list">
+                      {issues.slice(0, 5).map((f) => (
+                        <li key={f.id}><strong>{f.title}:</strong> {f.recommendation}</li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+                <div className="card wide-card">
+                  <h3>Categories</h3>
+                  <div className="category-grid">
+                    {groups.map((g) => {
+                      const s = categoryScore(g.findings)
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          className="category-tile"
+                          onClick={() => {
+                            setAuditFilter(g.id)
+                            setTab('audit')
+                          }}
+                        >
+                          <span className="category-name">{g.label}</span>
+                          <span className="category-score">{s.pct}%</span>
+                          <span className="muted small">
+                            {g.findings.filter((f) => f.status === 'pass').length} good ·{' '}
+                            {g.findings.filter((f) => f.status === 'attention').length} need work
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
-            </section>
+            )}
 
-            <section id="section-audit" className="tool-section">
-              <p className="tool-kicker">TOOL 1 · <span className="tier free">FREE</span></p>
-              <h2>Basic SEO Audit</h2>
-              <p className="tool-intro">What search engines see on your page, check by check, with evidence and a fix for each issue.</p>
-              <AuditSection report={report} />
-            </section>
+            {tab === 'audit' && (
+              <div>
+                {auditFilter && (
+                  <p>
+                    Showing <strong>{groups.find((g) => g.id === auditFilter)?.label}</strong>{' '}
+                    <button type="button" className="link-btn" onClick={() => setAuditFilter(null)}>Show all categories</button>
+                  </p>
+                )}
+                {(auditFilter ? groups.filter((g) => g.id === auditFilter) : groups).map((g) => {
+                  const s = categoryScore(g.findings)
+                  return (
+                    <section key={g.id} className="category-section">
+                      <h3>{g.label} <span className="muted small">— {s.earned}/{s.max} points</span></h3>
+                      <div className="findings-list">
+                        {g.findings.map((f) => (
+                          <FindingCard key={f.id} finding={f} />
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })}
+              </div>
+            )}
 
-            <section id="section-action" className="tool-section">
-              <p className="tool-kicker">TOOL 2 · <span className="tier free">FREE</span></p>
-              <h2>SEO Action Checklist</h2>
-              <p className="tool-intro">Your audit as a to-do list. Start at the top: the most important fixes are listed first.</p>
-              <ActionChecklist report={report} />
-            </section>
+            {tab === 'checklist' && (
+              <div>
+                <p className="muted">
+                  Every issue below explains what needs improvement, why it matters, and what to do.
+                  {issues.length > 0 && ` ${issues.length} task(s) in total.`}
+                </p>
+                {issues.length === 0 ? (
+                  <p>No action items — everything checked passed.</p>
+                ) : (
+                  <div className="findings-list">
+                    {issues.map((f) => (
+                      <FindingCard key={f.id} finding={f} showWhy />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            <section id="section-preview" className="tool-section">
-              <p className="tool-kicker">TOOL 3 · <span className="tier free">FREE</span></p>
-              <h2>Search &amp; Social Preview</h2>
-              <p className="tool-intro">How your page could appear to people searching and sharing it, and how to improve that first impression.</p>
-              <PreviewTool report={report} />
-            </section>
-
-            <section id="section-launch" className="tool-section">
-              <p className="tool-kicker">TOOL 4 · <span className="tier free">FREE</span></p>
-              <h2>Website Launch Checklist</h2>
-              <p className="tool-intro">Everything that should be ready before your site goes live, checked automatically where possible.</p>
-              <LaunchChecklist report={report} launchChecks={launchChecks} launchError={launchError} />
-            </section>
-
-            <section id="section-quality" className="tool-section">
-              <p className="tool-kicker">TOOL 5 · <span className="tier free">FREE</span></p>
-              <h2>Website Quality Checklist</h2>
-              <p className="tool-intro">A quality and usability check for the same page, in plain words, with its limits stated honestly.</p>
-              <QualityTool report={report} />
-            </section>
-
-            <section id="section-premium" className="tool-section">
-              <h2>Premium</h2>
-              {account && account.kind !== 'starter' && <p className="account-detail" role="status">{account.detail}</p>}
-              <p className="tool-intro">Your free report is complete. Premium adds deeper scans and branded reports — see the difference below, then choose a plan on the payment page.</p>
-              <div className="premium-diff">
-                <div className="premium-diff-col">
-                  <h3>What you have now — Starter, free</h3>
-                  <ul>
-                    <li>Basic SEO audit for one page</li>
-                    <li>Action checklist, most important first</li>
-                    <li>Search &amp; social preview</li>
-                    <li>Launch checklist, including robots.txt and sitemap</li>
-                    <li>Quality checklist for one page</li>
-                    <li>Broken-link check for up to 5 internal links</li>
-                    <li>Free JSON and HTML downloads</li>
-                  </ul>
+            {tab === 'preview' && preview && (
+              <div>
+                <p className="muted">
+                  Previews use the real title, description, and Open Graph values found on the page.
+                  A missing value is shown as missing — nothing is invented.
+                </p>
+                <div className="preview-grid">
+                  <article className="card preview-card">
+                    <h3>Google Search</h3>
+                    <p className="google-url">{preview.url}</p>
+                    <p className="google-title">{preview.title ?? 'Missing page title'}</p>
+                    <p className="google-desc">{preview.description ?? 'No meta description found — Google would use page text instead.'}</p>
+                  </article>
+                  <article className="card preview-card">
+                    <h3>Facebook</h3>
+                    <p className="fb-title">{preview.ogTitle ?? preview.title ?? 'Missing sharing title'}</p>
+                    <p className="muted small">{preview.url}</p>
+                    <p>{preview.ogDescription ?? preview.description ?? 'No sharing description found.'}</p>
+                    {!preview.ogTitle && <p className="warn">og:title is missing — Facebook would fall back to the page title.</p>}
+                    {!preview.ogDescription && <p className="warn">og:description is missing — Facebook would fall back to the meta description or page text.</p>}
+                  </article>
+                  <article className="card preview-card">
+                    <h3>X (Twitter) card</h3>
+                    <p className="fb-title">{preview.ogTitle ?? preview.title ?? 'Missing card title'}</p>
+                    <p>{preview.ogDescription ?? preview.description ?? 'No card description found.'}</p>
+                    <p className="muted small">X summary cards use Open Graph values when present, otherwise the page title and description.</p>
+                  </article>
                 </div>
-                <div className="premium-diff-col premium-col">
-                  <h3>What you will get — Premium</h3>
-                  <ul>
-                    <li>Everything in Starter, plus:</li>
-                    <li>Full broken-link scan, not limited to 5 links</li>
-                    <li>Premium audit findings: structured data, hreflang, anchor quality, duplicate headings, word count and sitemap from robots.txt</li>
-                    <li>Branded downloadable report</li>
-                    <li>Multi-page quality scan</li>
+                <div className="card">
+                  <h3>Metadata recommendations</h3>
+                  <ul className="plain-list">
+                    {(['title-present', 'description-present', 'open-graph'] as const).map((id) => {
+                      const f = findById(report, id)
+                      if (!f) return null
+                      return <li key={id}><strong>{f.title}:</strong> {f.recommendation}</li>
+                    })}
+                    {preview.canonical && <li><strong>Canonical:</strong> {preview.canonical}</li>}
                   </ul>
-                  <p className="premium-note">Plans and payment are on the payment page. No price is shown here.</p>
                 </div>
               </div>
-              <ul>
-                <li><strong>Full broken-link scan</strong> — <span className="tier premium">LOCKED</span> — Starter checks up to 5 internal links.</li>
-                <li><strong>Premium audit findings</strong> — <span className="tier premium">LOCKED</span> — Structured data, hreflang, anchor-text quality, duplicate headings, word count, sitemap-from-robots.</li>
-                <li><strong>Branded downloadable report</strong> — <span className="tier premium">LOCKED</span> — The free JSON/HTML downloads are not the branded report.</li>
-                <li><strong>Multi-page quality scan</strong> — <span className="tier premium">LOCKED</span> — The Quality section above covers one analyzed page.</li>
-              </ul>
-              <GoPremium />
-              <button type="button" onClick={onPremium} disabled={checkingPremium}>{checkingPremium ? 'Checking…' : 'Check premium availability →'}</button>
-              {premiumMsg && <p className="premium-msg" role="status">{premiumMsg}</p>}
-              <button type="button" className="secondary" onClick={analyzeAnother}>Analyze another URL →</button>
-            </section>
-          </div>
+            )}
+
+            {tab === 'launch' && (
+              <div>
+                {!launch ? (
+                  <div className="card">
+                    <p>Launch checks fetch the site&apos;s robots.txt and sitemap in addition to the audit.</p>
+                    <button type="button" className="btn-primary" onClick={handleLaunch} disabled={launchLoading}>
+                      {launchLoading ? 'Checking…' : 'Run launch checks'}
+                    </button>
+                    {launchError && <p className="form-error" role="alert">{launchError}</p>}
+                  </div>
+                ) : (
+                  <div className="card">
+                    <h3>Automatic checks</h3>
+                    <ul className="plain-list">
+                      {launchList.map((item) => (
+                        <li key={item.label}>
+                          <strong>{item.label}:</strong> {item.detail}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="muted small">{launch.note}</p>
+                  </div>
+                )}
+                <div className="card">
+                  <h3>Manual checks — verify these yourself before launch</h3>
+                  <ul className="check-list">
+                    {MANUAL_LAUNCH_ITEMS.map((item, i) => (
+                      <li key={item}>
+                        <label>
+                          <input type="checkbox" checked={manualDone.has(i)} onChange={() => toggleManual(i)} />
+                          {item}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="muted small">{manualDone.size} of {MANUAL_LAUNCH_ITEMS.length} manual checks ticked. These are stored only in this browser.</p>
+                </div>
+              </div>
+            )}
+
+            {tab === 'quality' && (
+              <div>
+                <p className="muted">
+                  Quality here is derived from the same scan — accessibility basics, mobile readiness,
+                  connection security, and the bounded broken-link check. This scan does not measure
+                  load speed, so no speed score is claimed.
+                </p>
+                <div className="findings-list">
+                  {qualityList.map((q) => (
+                    <article key={q.label} className="finding-card">
+                      <div className="finding-head">
+                        <h3>{q.label}</h3>
+                        <span className={`status-dot status-${q.state === 'pass' ? 'pass' : q.state === 'attention' ? 'attention' : 'not_checked'}`}>
+                          {q.state === 'pass' ? 'Good' : q.state === 'attention' ? 'Needs work' : 'Not checked'}
+                        </span>
+                      </div>
+                      <p className="finding-text">{q.detail}</p>
+                    </article>
+                  ))}
+                </div>
+                <div className="card">
+                  <h3>Full multi-page quality scan</h3>
+                  <p>
+                    A full scan of every page on a site is a Premium feature and is not available yet.
+                    The free scan checks one page and a bounded number of its links.
+                  </p>
+                  <a href={PREMIUM_URL} target="_blank" rel="noreferrer" className="btn-primary">Get Premium</a>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {!report && !loading && (
+          <section className="tools-intro">
+            <h2>Five tools, one report</h2>
+            <div className="tools-grid">
+              <div className="card"><h3>Basic SEO Audit</h3><p>Title, description, headings, images, links, canonical, indexing, sitemap, technical basics, and social tags — scored, with clear findings.</p></div>
+              <div className="card"><h3>Action Checklist</h3><p>Every issue turned into a task: what to fix, why it matters, and how.</p></div>
+              <div className="card"><h3>Search &amp; Social Preview</h3><p>How the page may appear on Google, Facebook, and X — from the real metadata found.</p></div>
+              <div className="card"><h3>Launch Checklist</h3><p>HTTPS, robots, sitemap, metadata, and the manual checks to verify before going live.</p></div>
+              <div className="card"><h3>Quality Check</h3><p>Accessibility basics, mobile readiness, security signals, and broken links — kept separate from the SEO score.</p></div>
+            </div>
+          </section>
         )}
       </main>
 
-      <footer className="footer">
-        <div className="footer-inner">
-          <p><strong>Kluzar SEO</strong> — Your Business, Online &amp; Managed.</p>
-          <p>Contact: <a href="mailto:info@kluzar.com">info@kluzar.com</a> · Support: <a href="mailto:support@kluzar.com">support@kluzar.com</a> · Phone: <a href="tel:+923285049744">+92 328 5049744</a> · Serving Worldwide</p>
-          <p className="footer-note">One analysis, five sections. Scores are Kluzar audit scores, not Google rankings. Private and local addresses are never fetched. This is a JavaScript-rendered single-page app on GitHub Pages — tool sections are not separate URLs, so the sitemap lists only the home page.</p>
-        </div>
+      <footer className="site-footer">
+        <p>
+          Kluzar SEO · Contact: info@kluzar.com · support@kluzar.com · Serving Worldwide
+        </p>
+        <p className="muted small">
+          This audit checks one public page. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.
+        </p>
       </footer>
     </div>
   )
