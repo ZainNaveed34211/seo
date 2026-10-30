@@ -6,8 +6,11 @@ export function Header(props: {
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   planLabel: string
+  // Premium users never see the Get Premium link: the server already
+  // confirmed their entitlement, so upselling them would be wrong.
+  isPremium: boolean
 }) {
-  const { theme, onToggleTheme, planLabel } = props
+  const { theme, onToggleTheme, planLabel, isPremium } = props
   return (
     <header className="site-header">
       <div className="header-inner">
@@ -16,7 +19,7 @@ export function Header(props: {
         </a>
         <nav className="header-nav" aria-label="Main">
           <a href="#" onClick={(e) => e.preventDefault()} className="nav-link active">Home</a>
-          <a href={PREMIUM_RETURN_URL} className="nav-link">Get Premium</a>
+          {!isPremium && <a href={PREMIUM_RETURN_URL} className="nav-link">Get Premium</a>}
           <a href="https://support.kluzar.com/" className="nav-link">Support</a>
         </nav>
         <div className="header-actions">

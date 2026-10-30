@@ -2,8 +2,8 @@ import PremiumUpsell from '../components/PremiumUpsell'
 import { qualityItems } from '../lib/derive'
 import type { AuditResponse } from '../lib/types'
 
-export default function QualityView(props: { report: AuditResponse }) {
-  const { report } = props
+export default function QualityView(props: { report: AuditResponse; isPremium: boolean }) {
+  const { report, isPremium } = props
   const list = qualityItems(report)
   return (
     <div>
@@ -25,9 +25,11 @@ export default function QualityView(props: { report: AuditResponse }) {
           </article>
         ))}
       </div>
-      <div style={{ marginTop: 16 }}>
-        <PremiumUpsell />
-      </div>
+      {!isPremium && (
+        <div style={{ marginTop: 16 }}>
+          <PremiumUpsell />
+        </div>
+      )}
     </div>
   )
 }

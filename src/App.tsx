@@ -42,6 +42,7 @@ function initialTheme(): 'light' | 'dark' {
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme)
   const [planLabel, setPlanLabel] = useState('Free')
+  const [isPremium, setIsPremium] = useState(false)
   const [planDetail, setPlanDetail] = useState('Starter (Free) — no account needed for a basic scan.')
   const [urlInput, setUrlInput] = useState('')
   const [report, setReport] = useState<AuditResponse | null>(null)
@@ -64,6 +65,7 @@ export default function App() {
   useEffect(() => {
     checkAccountStatus().then((s) => {
       setPlanLabel(s.planLabel)
+      setIsPremium(s.premium)
       setPlanDetail(s.detail)
     })
   }, [])
@@ -175,7 +177,7 @@ export default function App() {
 
   return (
     <div className="page">
-      <Header theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} planLabel={planLabel} />
+      <Header theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} planLabel={planLabel} isPremium={isPremium} />
 
       {updateAvailable && (
         <div className="update-banner" role="status">
@@ -319,7 +321,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <PremiumUpsell />
+              {!isPremium && <PremiumUpsell />}
               </>
             )}
 
@@ -340,7 +342,7 @@ export default function App() {
                   onToggleManual={toggleManual}
                 />
               )}
-              {tab === 'quality' && <QualityView report={report} />}
+              {tab === 'quality' && <QualityView report={report} isPremium={isPremium} />}
             </Suspense>
           </section>
         )}
@@ -355,7 +357,7 @@ export default function App() {
               <div className="card"><h3>Launch Checklist</h3><p>HTTPS, robots, sitemap, metadata, and the manual checks to verify before going live.</p></div>
               <div className="card"><h3>Quality Check</h3><p>Accessibility basics, mobile readiness, security signals, and broken links — kept separate from the SEO score.</p></div>
             </div>
-            <PremiumUpsell />
+            {!isPremium && <PremiumUpsell />}
           </section>
         )}
       </main>
