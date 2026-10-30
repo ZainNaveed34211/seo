@@ -4,12 +4,28 @@ import type { AuditResponse, ApiError, LaunchChecks } from './types'
 // Production: VITE_WORKER_URL = https://seo-api.kluzar.com (custom domain
 // on the Cloudflare Worker named kluzar-seo-audit — never rename it).
 // Local dev: leave empty, the Vite proxy forwards /api to localhost:8787.
-// Fallback: an empty/unset build variable uses the documented canonical
-// public Worker URL instead of a relative /api path — a relative path
-// POSTs to GitHub Pages itself, which rejects POST with HTTP 405 and can
-// never run a scan. An explicitly set VITE_WORKER_URL always wins.
-const WORKER_ENV = (import.meta.env.VITE_WORKER_URL as string | undefined)?.trim().replace(/\/$/, '')
-export const WORKER_URL = WORKER_ENV ? WORKER_ENV : 'https://seo-api.kluzar.com'
+//
+// A build variable is NEVER trusted blindly: a value that points at the
+// frontend itself, or has no https scheme, would make every scan POST to
+// GitHub Pages, which rejects POST with HTTP 405. Such a value is
+// discarded and the canonical Worker URL is used instead. An explicitly
+// set, valid https Worker URL always wins; localhost http is allowed
+// for local development only.
+function validWorkerUrl(v: string | undefined): string | null {
+  const cleaned = v?.trim().replace(/\/$/, '')
+  if (!cleaned) return null
+  try {
+    const u = new URL(cleaned)
+    if (typeof window !== 'undefined' && u.origin === window.location.origin) return null
+    if (u.protocol === 'https:') return cleaned
+    if (u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) return cleaned
+    return null
+  } catch {
+    return null
+  }
+}
+export const WORKER_URL = validWorkerUrl(import.meta.env.VITE_WORKER_URL as string | undefined)
+  ?? 'https://seo-api.kluzar.com'
 
 export function apiBase(): string {
   return `${WORKER_URL}/api`
