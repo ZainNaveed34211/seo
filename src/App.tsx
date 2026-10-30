@@ -224,7 +224,7 @@ export default function App() {
               </div>
               <div className="report-actions">
                 <button type="button" className="btn-secondary" onClick={() => { try { downloadJson(isPremium ? Object.assign({}, report, { plan: planLabel }) : report) } catch { setError('Report download failed. Please try again.') } }}>Download JSON</button>
-                <button type="button" className="btn-secondary" onClick={() => { try { downloadHtmlReport(report) } catch { setError('Report download failed. Please try again.') } }}>Download free report</button>
+                <button type="button" className="btn-secondary" onClick={() => { try { downloadHtmlReport(report, isPremium ? planLabel : undefined) } catch { setError('Report download failed. Please try again.') } }}>{isPremium ? 'Download report' : 'Download free report'}</button>
               </div>
             </div>
 

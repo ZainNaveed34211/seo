@@ -122,19 +122,27 @@ export function downloadJson(report: AuditResponse) {
   URL.revokeObjectURL(a.href)
 }
 
-export function downloadHtmlReport(report: AuditResponse) {
+export function downloadHtmlReport(report: AuditResponse, planLabel?: string) {
   // Free report generated client-side from the audit response.
   // This is NOT a premium branded report — premium endpoints are
   // gated server-side and stay locked until entitlements are live.
+  // When a premium plan label is passed, the header shows that plan
+  // instead of "Free" (title, heading, and a Plan line). Free
+  // downloads are unchanged.
+  const premiumPlan = planLabel && planLabel !== 'Free' ? planLabel : ''
+  const title = premiumPlan ? `Kluzar SEO Audit — ${escapeHtml(premiumPlan)} Report` : 'Kluzar SEO Audit — Free Report'
+  const disclaimer = premiumPlan
+    ? 'This is a page-level audit. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.'
+    : 'This is a free page-level audit. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.'
   const rows = report.findings.map((f) => `
     <tr><td><strong>${escapeHtml(f.title)}</strong><br/><small>${escapeHtml(f.explanation)}</small></td>
     <td>${escapeHtml(f.status)}</td><td>${escapeHtml(f.severity)}</td><td>${f.points}/${f.maxPoints}</td>
     <td>${escapeHtml(f.recommendation)}</td></tr>`).join('')
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Kluzar SEO Audit — Free Report</title></head>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head>
 <body style="font-family:system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#111">
-<h1>Kluzar SEO Audit — Free Report</h1>
-<p><strong>Page:</strong> ${escapeHtml(report.finalUrl)}<br/><strong>Score:</strong> ${report.score.total}/${report.score.max} — ${escapeHtml(report.score.grade)}<br/><strong>Date:</strong> ${escapeHtml(report.fetchedAt)}</p>
-<p>This is a free page-level audit. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.</p>
+<h1>${title}</h1>
+<p><strong>Page:</strong> ${escapeHtml(report.finalUrl)}<br/><strong>Score:</strong> ${report.score.total}/${report.score.max} — ${escapeHtml(report.score.grade)}<br/><strong>Date:</strong> ${escapeHtml(report.fetchedAt)}${premiumPlan ? `<br/><strong>Plan:</strong> ${escapeHtml(premiumPlan)}` : ''}</p>
+<p>${disclaimer}</p>
 <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr><th>Finding</th><th>Status</th><th>Severity</th><th>Points</th><th>Next step</th></tr></thead><tbody>${rows}</tbody></table>
 <p>Contact: info@kluzar.com · Serving Worldwide</p></body></html>`
   const blob = new Blob([html], { type: 'text/html' })
