@@ -1,5 +1,5 @@
 import { LOGO_URL, LOGO_DARK_URL } from '../logoData'
-import { ACCOUNT_LOGIN_URL, PREMIUM_URL } from '../lib/account'
+import { ACCOUNT_LOGIN_URL, PREMIUM_RETURN_URL } from '../lib/account'
 import type { Finding } from '../lib/types'
 
 export function Header(props: {
@@ -16,7 +16,7 @@ export function Header(props: {
         </a>
         <nav className="header-nav" aria-label="Main">
           <a href="#" onClick={(e) => e.preventDefault()} className="nav-link active">Home</a>
-          <a href={PREMIUM_URL} target="_blank" rel="noreferrer" className="nav-link">Get Premium</a>
+          <a href={PREMIUM_RETURN_URL} className="nav-link">Get Premium</a>
         </nav>
         <div className="header-actions">
           <span className="plan-pill" title="Your current plan">{planLabel}</span>

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { Header, ScoreRing } from './components/components'
 import { runAudit, runLaunchChecks, downloadJson, downloadHtmlReport } from './lib/api'
 import { normalizeUrl } from './lib/url'
-import { checkAccountStatus, PREMIUM_URL } from './lib/account'
+import { Header, ScoreRing } from './components/components'
+import PremiumUpsell from './components/PremiumUpsell'
+import { checkAccountStatus, ACCOUNT_LOGIN_URL, PREMIUM_RETURN_URL } from './lib/account'
 import type { AuditResponse, LaunchChecks } from './lib/types'
 import {
   groupFindings,
@@ -64,6 +66,13 @@ export default function App() {
       setPlanLabel(s.planLabel)
       setPlanDetail(s.detail)
     })
+  }, [])
+
+  // Footer tool links use hashes (#audit, #checklist, ...): opening the
+  // page with one selects that tool. Plain links, real destinations.
+  useEffect(() => {
+    const h = window.location.hash.replace('#', '')
+    if (h === 'audit' || h === 'checklist' || h === 'preview' || h === 'launch' || h === 'quality') setTab(h)
   }, [])
 
   // Service worker: production HTTPS only. A new version never silently
@@ -213,8 +222,8 @@ export default function App() {
                 </p>
               </div>
               <div className="report-actions">
-                <button type="button" className="btn-secondary" onClick={() => downloadJson(report)}>Download JSON</button>
-                <button type="button" className="btn-secondary" onClick={() => downloadHtmlReport(report)}>Download free report</button>
+                <button type="button" className="btn-secondary" onClick={() => { try { downloadJson(report) } catch { setError('Report download failed. Please try again.') } }}>Download JSON</button>
+                <button type="button" className="btn-secondary" onClick={() => { try { downloadHtmlReport(report) } catch { setError('Report download failed. Please try again.') } }}>Download free report</button>
               </div>
             </div>
 
@@ -233,6 +242,7 @@ export default function App() {
             </nav>
 
             {tab === 'overview' && (
+              <>
               <div className="overview-grid">
                 <div className="card score-card">
                   <ScoreRing pct={scorePct(report)} label={report.score.grade} />
@@ -309,6 +319,8 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              <PremiumUpsell />
+              </>
             )}
 
             <Suspense fallback={<p className="muted">Loading…</p>}>
@@ -343,16 +355,51 @@ export default function App() {
               <div className="card"><h3>Launch Checklist</h3><p>HTTPS, robots, sitemap, metadata, and the manual checks to verify before going live.</p></div>
               <div className="card"><h3>Quality Check</h3><p>Accessibility basics, mobile readiness, security signals, and broken links — kept separate from the SEO score.</p></div>
             </div>
+            <PremiumUpsell />
           </section>
         )}
       </main>
 
       <footer className="site-footer">
-        <p>
-          Kluzar SEO · Contact: info@kluzar.com · support@kluzar.com · Serving Worldwide
-        </p>
-        <p className="muted small">
-          This audit checks one public page. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked.
+        <div className="footer-grid">
+          <div className="footer-brand">
+            <p><strong>Kluzar SEO</strong></p>
+            <p className="muted">Free analysis of any public website — title, description, headings, links, images, and technical basics. No account needed for a basic scan.</p>
+            <p><a href={PREMIUM_RETURN_URL} className="footer-main-link">Get Premium to unlock full potential</a></p>
+          </div>
+          <nav className="footer-col" aria-label="SEO tools">
+            <h3>Tools</h3>
+            <ul>
+              <li><a href="#audit" onClick={() => setTab('audit')}>Basic SEO Audit</a></li>
+              <li><a href="#checklist" onClick={() => setTab('checklist')}>Action Checklist</a></li>
+              <li><a href="#preview" onClick={() => setTab('preview')}>Search &amp; Social Preview</a></li>
+              <li><a href="#launch" onClick={() => setTab('launch')}>Launch Checklist</a></li>
+              <li><a href="#quality" onClick={() => setTab('quality')}>Quality Check</a></li>
+            </ul>
+          </nav>
+          <nav className="footer-col" aria-label="Kluzar">
+            <h3>Kluzar</h3>
+            <ul>
+              <li><a href="https://kluzar.com/">Kluzar home</a></li>
+              <li><a href="https://kluzar.com/services/">Services</a></li>
+              <li><a href={ACCOUNT_LOGIN_URL}>Account login</a></li>
+              <li><a href={PREMIUM_RETURN_URL}>Plans &amp; Premium</a></li>
+            </ul>
+          </nav>
+          <nav className="footer-col" aria-label="Support and legal">
+            <h3>Support &amp; legal</h3>
+            <ul>
+              <li><a href="mailto:info@kluzar.com">info@kluzar.com</a></li>
+              <li><a href="mailto:support@kluzar.com">support@kluzar.com</a></li>
+              <li><a href="https://kluzar.com/terms.html">Terms of Service</a></li>
+              <li><a href="https://kluzar.com/privacy.html">Privacy Policy</a></li>
+              <li><a href="https://kluzar.com/refund.html">Refund Policy</a></li>
+              <li><a href="https://kluzar.com/payment-terms.html">Payment Terms</a></li>
+            </ul>
+          </nav>
+        </div>
+        <p className="muted small footer-note">
+          This audit checks one public page. It does not claim search rankings, traffic, backlinks, or indexing status that were not checked. · Serving Worldwide
         </p>
       </footer>
     </div>

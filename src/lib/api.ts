@@ -51,19 +51,51 @@ async function fetchJson(path: string, body: unknown, timeoutMs = 45000): Promis
   }
 }
 
+// User-facing errors are ALWAYS plain, friendly sentences. Server error
+// text, HTTP statuses, and internal codes are never shown in the UI:
+// they leak implementation detail and mean nothing to the reader.
+// They stay out of the UI entirely (diagnostics only, via console).
+function friendlyError(code: string | undefined, kind: 'audit' | 'launch'): string {
+  switch (code) {
+    case 'INVALID_URL':
+      return 'That address could not be analyzed. Check the URL and try again.'
+    case 'PRIVATE_TARGET':
+      return 'Private and local addresses cannot be analyzed. Only public websites can be analyzed.'
+    case 'UPSTREAM_STATUS':
+      return 'This site could not be opened for analysis — it may block automated checks. Try a different public page.'
+    case 'FETCH_FAILED':
+      return 'The site could not be reached. Check the address and try again, or try a different page.'
+    case 'TOO_MANY_REDIRECTS':
+    case 'BAD_REDIRECT':
+      return 'This site redirects too many times to be analyzed. Try a direct page URL on the site.'
+    case 'TOO_LARGE':
+      return 'This page is too large to analyze. Try a lighter page on the same site.'
+    case 'NOT_HTML':
+      return 'This address did not return a web page, so there is nothing to analyze.'
+    case 'UPSTREAM_EMPTY':
+    case 'UPSTREAM_READ_FAILED':
+      return 'The site returned an empty or unreadable page. Try again, or try a different page.'
+    case 'PREMIUM_NOT_ENABLED':
+    case 'PREMIUM_NOT_IMPLEMENTED':
+      return 'This feature is part of Premium and is not available yet.'
+    default:
+      return kind === 'audit'
+        ? 'The analysis could not be completed. Please try again, or try a different page.'
+        : 'The launch check could not be completed. Please try again.'
+  }
+}
+
 export async function runAudit(url: string): Promise<AuditResponse> {
   const res = await fetchJson('/audit', { url })
   const data = (await res.json().catch(() => null)) as AuditResponse | ApiError | null
   if (!res.ok || !data || 'error' in data) {
-    const err = (data as ApiError | null)?.error ?? `Audit failed (HTTP ${res.status}).`
-    const code = (data as ApiError | null)?.code ?? 'AUDIT_FAILED'
-    throw new Error(`${err} [${code}]`)
+    throw new Error(friendlyError((data as ApiError | null)?.code, 'audit'))
   }
   // Validate the shape before anything is rendered: React escapes text by
   // default, but a malformed payload must never reach the UI as a report.
   const r = data as AuditResponse
   if (!Array.isArray(r.findings) || !r.score || typeof r.score.total !== 'number' || typeof r.score.max !== 'number' || typeof r.finalUrl !== 'string') {
-    throw new Error('Unexpected response from the analysis service. [BAD_RESPONSE]')
+    throw new Error('The analysis service returned an unexpected response. Please try again.')
   }
   return r
 }
@@ -72,9 +104,7 @@ export async function runLaunchChecks(url: string): Promise<LaunchChecks> {
   const res = await fetchJson('/launch-checks', { url })
   const data = (await res.json().catch(() => null)) as LaunchChecks | ApiError | null
   if (!res.ok || !data || 'error' in data) {
-    const err = (data as ApiError | null)?.error ?? `Launch check failed (HTTP ${res.status}).`
-    const code = (data as ApiError | null)?.code ?? 'LAUNCH_FAILED'
-    throw new Error(`${err} [${code}]`)
+    throw new Error(friendlyError((data as ApiError | null)?.code, 'launch'))
   }
   return data as LaunchChecks
 }

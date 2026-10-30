@@ -20,6 +20,13 @@ export const LOGIN_URL = envVal(import.meta.env.VITE_LOGIN_URL as string | undef
   || 'https://accounts.kluzar.com'
 export const PREMIUM_URL = envVal(import.meta.env.VITE_PREMIUM_URL as string | undefined)
   || 'https://payments.kluzar.com'
+
+// Get Premium links from SEO carry the return destination: after a
+// completed payment, the payments page sends the user back here.
+// The payments page validates ?return= the same way (https Kluzar
+// subdomains only, never payments itself), so an unknown or invalid
+// value simply shows no back link and changes nothing else.
+export const PREMIUM_RETURN_URL = `${PREMIUM_URL}/?return=${encodeURIComponent('https://seo.kluzar.com/')}`
 export const SESSION_URL = envVal(import.meta.env.VITE_AUTH_SESSION_URL as string | undefined)
 
 // Account entry point for first-time users: sign in / sign up, then come

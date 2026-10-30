@@ -1,4 +1,4 @@
-import { PREMIUM_URL } from '../lib/account'
+import PremiumUpsell from '../components/PremiumUpsell'
 import { qualityItems } from '../lib/derive'
 import type { AuditResponse } from '../lib/types'
 
@@ -25,13 +25,8 @@ export default function QualityView(props: { report: AuditResponse }) {
           </article>
         ))}
       </div>
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3>Full multi-page quality scan</h3>
-        <p>
-          A full scan of every page on a site is a Premium feature and is not available yet.
-          The free scan checks one page and a bounded number of its links.
-        </p>
-        <a href={PREMIUM_URL} target="_blank" rel="noreferrer" className="btn-primary">Get Premium</a>
+      <div style={{ marginTop: 16 }}>
+        <PremiumUpsell />
       </div>
     </div>
   )

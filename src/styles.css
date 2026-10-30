@@ -383,3 +383,23 @@ button { font: inherit; }
     transform: none;
   }
 }
+
+/* Premium upsell card: violet accent edge, gentle lift on hover. */
+.premium-upsell { border-left: 4px solid var(--accent-2); transition: transform .15s ease, box-shadow .15s ease; }
+.premium-upsell:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(20, 18, 114, .12); }
+.premium-upsell-head { display: flex; gap: 10px; align-items: center; }
+.premium-upsell-head h3 { margin: 0; }
+.premium-upsell-head svg { color: var(--accent-2); flex-shrink: 0; }
+.premium-upsell .btn-primary { display: inline-block; margin-top: 4px; }
+
+/* Footer: real link columns, main links highlighted, collapses on mobile. */
+.footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 24px; text-align: left; }
+.footer-col h3 { margin: 0 0 10px; font-size: 14px; }
+.footer-col ul { list-style: none; margin: 0; padding: 0; }
+.footer-col li { margin: 6px 0; }
+.footer-col a { color: var(--text); text-decoration: none; }
+.footer-col a:hover { color: var(--accent-2); text-decoration: underline; }
+.footer-main-link { color: var(--accent-2); font-weight: 700; }
+.footer-note { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 12px; }
+@media (max-width: 820px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 520px) { .footer-grid { grid-template-columns: 1fr; } }
